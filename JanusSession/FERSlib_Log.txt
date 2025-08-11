@@ -1,0 +1,6 @@
+FERSlib Log created on Mon May  5 10:54:30 2025 UTC
+[00h:00m:00s:000ms][INFO] Opening Device with path eth:10.10.205.51
+[00h:00m:03s:008ms][ERROR] Unable to connect to server (IP=10.10.205.51, Port=9760)
+[00h:00m:06s:011ms][ERROR] Unable to connect to server (IP=10.10.205.51, Port=9000)
+[00h:00m:06s:012ms][ERROR][BRD 00] Failed to open Control Socket
+[00h:00m:06s:012ms][ERROR][BRD 00] Failed to open the device at 10.10.205.51

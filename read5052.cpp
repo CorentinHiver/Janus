@@ -6,10 +6,10 @@ int main(int argc, char** argv)
 {
   std::string filename;
   if (argc == 2) filename = argv[1];
-  // // MyDataReader data(filename);
+  // // MyDataReader data(filename); // First version
   // // data.toRoot();
 
-  Reader5052<64> reader(filename);
+  Reader5052<64> reader(filename); // Second version
   reader.initOutput();
   while(reader.readEvent()) reader.fillTree();
   auto rootFilename = removeExtension(removePath(filename))+".root";

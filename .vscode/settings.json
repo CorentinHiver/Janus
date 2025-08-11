@@ -83,7 +83,8 @@
     "charconv": "cpp",
     "csetjmp": "cpp",
     "source_location": "cpp",
-    "*.inc": "cpp"
+    "*.inc": "cpp",
+    "*.def": "c"
   },
   "makefile.configureOnOpen": false
 }

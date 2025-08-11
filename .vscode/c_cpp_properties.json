@@ -5,10 +5,11 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}",
-                "/home/corentin/Installation/root/**"
+                "/home/corentin/Installation/root/**",
+                "/home/corentin/miniconda3/**"
             ],
             "defines": [],
-            "compilerPath": "/usr/bin/clang",
+            "compilerPath": "/usr/bin/gcc",
             "cStandard": "c17",
             "intelliSenseMode": "linux-clang-x64",
             "cppStandard": "c++17"

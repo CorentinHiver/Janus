@@ -323,38 +323,3 @@ private:
 };
 
 #endif //READER5052_HPP
-
-/*
-// Acquisition Mode 5202
-#define ACQMODE_SPECT		0b0001  // Spectroscopy Mode (Energy)
-#define ACQMODE_TIMING	0b0010  // Timing Mode 
-#define ACQMODE_TSPECT	0b0011  // Spectroscopy + Timing Mode (Energy + Tstamp)
-#define ACQMODE_COUNT		0b0100  // Counting Mode (MCS)
-#define ACQMODE_WAVE		0b1000  // Waveform Mode
-
-std::unordered_map<int, std::string> acquisitionModes = 
-{
-  {ACQMODE_SPECT, "ACQMODE_SPECT"},
-  {ACQMODE_TIMING, "ACQMODE_TIMING"},
-  {ACQMODE_TSPECT, "ACQMODE_TSPECT"},
-  {ACQMODE_COUNT, "ACQMODE_COUNT"},
-  {ACQMODE_WAVE, "ACQMODE_WAVE"}
-};
-
-// Data Qualifier 5202
-#define DTQ_SPECT			  0b00000001  // Spectroscopy Mode (Energy)
-#define DTQ_TIMING			0b00000010  // Timing Mode 
-#define DTQ_TSPECT			0b00000011  // Spectroscopy + Timing Mode (Energy + Tstamp)
-#define DTQ_COUNT 			0b00000100  // Counting Mode (MCS)
-#define DTQ_WAVE			  0b00001000  // Waveform Mode
-#define DTQ_RTSTAMP     0b10000000  // Relative Timestamp
-
-// Data Type 5202
-#define LG              0b000001
-#define HG              0b000010
-#define TOA             0b010000
-#define TOT             0b100000
-
-static constexpr bool relTimestamp(uint8_t const & acq_mode){return (acq_mode & 0xF0 == DTQ_RTSTAMP);}
-
-*/
