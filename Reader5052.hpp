@@ -47,7 +47,7 @@ class Reader5052
     {TOT, "TOT" }
   };
 
-  constexpr bool relTimestamp(uint8_t const & acq_mode){return (acq_mode & 0xF0 == DTQ_RTSTAMP);}
+  constexpr bool relTimestamp(uint8_t const & acq_mode) {return (acq_mode & 0xF0 == DTQ_RTSTAMP);}
   
 public:
 
@@ -130,36 +130,23 @@ public:
     printHeader();
   }
 
-  void printHeader()
-  {
-    print("Software version:", m_data_version);
-    print("data format" , int(m_data_format));
-    print("board version", int(m_board_version));
-    print("run number", int(m_run_number));
-    print("acquisition mode", status_dictonnary.at(m_acquisition_mode));
-    print("en bin", int(m_en_bin));
-    print("time unit", int(m_time_unit));
-    print("LSB_ns", m_LSB_ns);
-    print("data size", m_data_size, "o");
-  }
-
   bool readEvent()
   {
-    m_hit.reset();
+    m_hit.reset(); // Reset hit from last event (event means a hit in caen documentation)
     
     std::size_t read_size = 0; // Increment the read size for every read_buff call until its size exceeds the size of the event in bytes (m_event_bin_size)
     read_buff(&m_event_bin_size , read_size);
     if (m_datafile.eof()) return false; // eof is activated only after a failed reading
 
-    read_buff(&m_board          , read_size);
-    read_buff(&m_hit.timestamp  , read_size);
+    read_buff(&m_board          , read_size); // Read the board type
+    read_buff(&m_hit.timestamp  , read_size); // Read the timestamp
     
-    if (m_acquisition_mode & DTQ_RTSTAMP) read_buff(&m_rel_timestamp, read_size);
+    if (m_acquisition_mode & DTQ_RTSTAMP) read_buff(&m_rel_timestamp, read_size); // Read the relative timestamp if activated
 
-    auto timingMode = [this](){return ((m_acquisition_mode & 0X0F) == DTQ_TIMING);};
-    auto relativeTimestampMode = [this](){return (m_acquisition_mode & DTQ_RTSTAMP);};
+    auto timingMode = ((m_acquisition_mode & 0X0F) == DTQ_TIMING);
+    // auto relativeTimestampMode = [this](){return (m_acquisition_mode & DTQ_RTSTAMP);}; // Unused ?
 
-    if (timingMode()) read_buff(&m_hit.number_hits , read_size);
+    if (timingMode) read_buff(&m_hit.number_hits , read_size);
     else 
     {
       read_buff(&m_hit.hit_id  , read_size);
@@ -171,10 +158,10 @@ public:
     while (read_size < m_event_bin_size)
     { // Looping through all the written channels :
            if (m_acquisition_mode & DTQ_TSPECT) readTimeOrSpectroChannel(read_size); // Spect Or Time
-      else if (m_acquisition_mode & DTQ_COUNT ) readCountChannel              (read_size);  // Count mode
+      else if (m_acquisition_mode & DTQ_COUNT ) readCountChannel        (read_size); // Count mode
       else throw_error("Don't know acquisition mode "+std::to_string(int(m_acquisition_mode)));
       
-      if (!timingMode()) ++m_hit.number_hits;
+      if (!timingMode) ++m_hit.number_hits;
     }
     return true;
  }
@@ -247,8 +234,23 @@ public:
   }
 
   bool const end() {return m_datafile.eof();}
+
+  void printHeader()
+  {
+    print("Software version:", m_data_version);
+    print("data format" , int(m_data_format));
+    print("board version", int(m_board_version));
+    print("run number", int(m_run_number));
+    print("acquisition mode", status_dictonnary.at(m_acquisition_mode));
+    print("en bin", int(m_en_bin));
+    print("time unit", int(m_time_unit));
+    print("LSB_ns", m_LSB_ns);
+    print("data size", m_data_size, "o");
+  }
+
   
 private:
+
   std::ifstream m_datafile;
   std::string m_filename;
   HitSiPM<_size> m_hit;

@@ -2,7 +2,6 @@
 #define HITSIPM
 
 #include "LibCo/libCo.hpp"
-// #include "MyBinaryData.hpp"
 
 template<size_t _size>
 class HitSiPM
@@ -12,13 +11,14 @@ public:
 
   void reset()
   {
-    timestamp = 0;
-    hit_id = 0;
+    timestamp   = 0;
+    hit_id      = 0;
     number_hits = 0;
+
     for (int i = 0; i<_size; ++i)
     {
-      HGs[i] = 0;
-      LGs[i] = 0;
+      HGs [i] = 0;
+      LGs [i] = 0;
       ToTs[i] = 0;
       ToAs[i] = 0;
     }
@@ -35,12 +35,13 @@ public:
     return out;
   }
 
-  double   timestamp   = 0;
-  uint64_t hit_id      = 0;
-  uint16_t number_hits = 0;
-  uint32_t counter     = 0;
-  double HGs[_size] = {0};
-  double LGs[_size] = {0};
+  double   timestamp   =  0 ;
+  uint64_t hit_id      =  0 ;
+  uint16_t number_hits =  0 ;
+  uint32_t counter     =  0 ;
+  
+  double HGs [_size] = {0};
+  double LGs [_size] = {0};
   double ToTs[_size] = {0};
   double ToAs[_size] = {0};
 
