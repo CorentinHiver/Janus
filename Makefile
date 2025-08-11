@@ -1,4 +1,4 @@
-HEADERS=read5052.cpp DataReader_5202.hpp MyBinaryData.hpp HitSiPM.hpp TreeSiPM.hpp Reader5052.hpp LibCo/*
+HEADERS=read5052.cpp HitSiPM.hpp Reader5052.hpp LibCo/*
 
 exec: $(HEADERS)
 	# rm exec
