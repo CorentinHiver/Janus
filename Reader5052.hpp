@@ -67,6 +67,9 @@ public:
     createBranchArray(m_tree, &m_hit.LGs , "LG" , "size");
     createBranchArray(m_tree, &m_hit.ToTs, "ToT", "size");
     createBranchArray(m_tree, &m_hit.ToAs, "ToA", "size");
+
+    if (m_autoSave) m_tree -> SetAutoSave();
+    
     m_output_init = true;
   }
 
@@ -74,6 +77,11 @@ public:
   {
     if (filename != "") m_filename = filename;
     m_datafile.open(m_filename,std::ios::binary | std::ios::in);
+    if (size_file_conversion(size_file(m_datafile), "o", "Go") > 1)
+    {
+      m_autoSave = true;
+      if (m_output_init) m_tree -> SetAutoSave(); // If m_tree already created, apply it directly
+    }
     if (!m_datafile.is_open())
     {
       throw_error("Could not open file '"+ m_filename+"'");
@@ -225,15 +233,10 @@ public:
     file   -> Close();
     print(filename, "written");
   }
-
-  void readCountChannel(size_t & read_size) 
-  {
-    uint8_t channel_id; 
-    read_buff(&channel_id, read_size);
-    read_buff(&m_hit.counter, read_size);
-  }
-
+  
   bool const end() {return m_datafile.eof();}
+
+  auto & getTree() {return m_tree;}
 
   void printHeader()
   {
@@ -251,11 +254,23 @@ public:
   
 private:
 
+  // Internal methods :
+
+  void readCountChannel(size_t & read_size) 
+  {
+    uint8_t channel_id; 
+    read_buff(&channel_id, read_size);
+    read_buff(&m_hit.counter, read_size);
+  }
+
+  // Attributes :
+
   std::ifstream m_datafile;
   std::string m_filename;
   HitSiPM<_size> m_hit;
   TTree *m_tree = nullptr;
   size_t m_size = _size;
+  bool m_autoSave = false;
 
   std::string event_str;
 

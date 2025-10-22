@@ -53,7 +53,7 @@ float size_file_conversion(float const & size, std::string const & unit_i, std::
 
 float size_file(std::ifstream& file, std::string const & unit = "o")
 {
-  auto const init = file.tellg();
+  auto const init = file.tellg();// Register inital place in the file
   file.seekg(0, std::ios::end);
   auto const ret = file.tellg();
   file.seekg(init);// Go back to inital place in the file

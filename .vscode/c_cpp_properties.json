@@ -5,8 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}",
-                "/home/corentin/Installation/root/**",
-                "/home/corentin/miniconda3/**"
+                "~/miniconda3/envs/work-env/include/"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

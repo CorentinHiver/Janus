@@ -6,6 +6,7 @@ int main(int argc, char** argv)
 {
   std::string filename;
   if (argc == 2) filename = argv[1];
+
   // // MyDataReader data(filename); // First version
   // // data.toRoot();
 
@@ -15,7 +16,7 @@ int main(int argc, char** argv)
   auto rootFilename = removeExtension(removePath(filename))+".root";
   reader.write(rootFilename,"recreate");
 
-  // JanusSession session;
+  // JanusSession session; // Other project : 
   // session.connect();
   return 0;
 }
