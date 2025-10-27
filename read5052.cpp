@@ -12,9 +12,12 @@ int main(int argc, char** argv)
 
   Reader5052<64> reader(filename); // Second version
   reader.initOutput();
-  while(reader.readEvent()) reader.fillTree();
   auto rootFilename = removeExtension(removePath(filename))+".root";
-  reader.write(rootFilename,"recreate");
+  reader.writeTo(rootFilename,"recreate");
+  while(reader.readEvent()) reader.fillTree();
+  print("writting");
+  reader.write();
+  // reader.write(rootFilename,"recreate");
 
   // JanusSession session; // Other project : 
   // session.connect();

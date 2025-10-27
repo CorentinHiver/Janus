@@ -32,30 +32,26 @@ std::string removeLastPart  (std::string const & string, char const & sep) { ret
  * with removeVoids this function returns {"", "1", "2", "3", "", "5"}
  * 
 */
-void fillList(std::vector<std::string> & list, std::string string, std::string const & separator, bool const & removeVoids = false)
+void fillList(std::vector<std::string>& list, const std::string& input, const std::string& separator, const bool& removeVoids = false)
 {
-  size_t pos = 0;
-  while((pos = string.find(separator) ) != -1ul)
+  size_t start = 0;
+  size_t sep_len = separator.length();
+  size_t end;
+
+  while ((end = input.find(separator, start)) != std::string::npos) 
   {
-    if (pos==0) 
-    {
-      if (!removeVoids) list.push_back("");
-      string.erase(0,1);
-      continue; 
+    std::string token = input.substr(start, end - start);
+    if (!token.empty() || !removeVoids) {
+        list.push_back(token);
     }
-    else if (pos == string.size())
-    {// If the separator is at the end of the string then we have completed the list and can terminate the loop
-      list.push_back(string.substr(0,pos));
-      return;
-    }
-    else
-    {// If the separator is at the middle of the string then remove the part before and push it into the vector
-      list.push_back(string.substr(0,pos));
-      string.erase(0,pos+1);
-    }
+    start = end + sep_len;
   }
-  // If the string does not finish with the character then we must take the last part of it
-  if (string.size() > 0) list.push_back(string);
+
+  std::string last = input.substr(start);
+  if (!last.empty() || !removeVoids) 
+  {
+    list.push_back(last);
+  }
 }
 
 std::vector<std::string> getList(std::string string, std::string const & separator, bool const & removeVoids = false)
@@ -91,20 +87,15 @@ std::string removeBlankSpace(std::string str)
  * @details 
  * For instance : 
  *        std::string inString = "je_suis_ton_pere";
- *        std::string ostring = replaceCharacter(inString, '_', ' ');
- *        print(ostring);
- *        // output : "je suis ton pere"
+ *        std::string ostring = replace_all(inString, '_', ' '); // "je suis ton pere"
  * 
 */
-std::string replaceCharacter(std::string const & inString, char const & inChar, char const & outChar)
+std::string replace_all(std::string const & inString, std::string inChar, std::string outChar)
 {
-  auto list = getList(inString, std::string(inChar, 1));
-  std::string ostring;
+  auto list = getList(inString, inChar);
 
-  for (auto const & string : list)
-  {
-    ostring+=(string+outChar);
-  }
+  std::string ostring;
+  for (auto const & string : list) ostring+=(string+outChar);
   return ostring;
 }
 
@@ -220,6 +211,21 @@ void replace_all(std::string & string, std::string const & substr_init, std::str
   }
 }
 
+std::string mergeStrings(std::vector<std::string> const & strings, std::string const & sep = "")
+{
+  std::string ret;
+  for (auto const & str : strings) ret += str + sep;
+  return removeLastPart(ret, sep); // Remove the last sep
+}
+
+template<class T>
+std::string mergeStrings(std::vector<T> const & strings, std::string const & sep = "")
+{
+  std::string ret;
+  for (auto const & str : strings) ret += std::to_string(str) + sep;
+  return removeLastPart(ret, sep); // Remove the last sep
+}
+
 /**
  * @brief Convert i_th first arguments of argv into a string (), by default starting at the first 
  * @attention argv MUST be null-terminated
@@ -238,7 +244,7 @@ std::string argv_to_string(char** argv, int const & start_i = 0)
 }
 
 /// @brief Create a null terminated C-style array of char from a string
-/// @attention you'll have to delete the allocated memory
+/// @attention you'll have to delete the allocated memory using delete_argv()
 char** string_to_argv(std::string const & string)
 {
   // Breaks down the string into an array of substrings (separated by a space in the string)

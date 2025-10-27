@@ -38,14 +38,18 @@
 #include <stdexcept>
 #include <string>
 #include <stack>
+#include <sys/ioctl.h>
 #include <thread>
 #include <typeindex>
 #include <typeinfo>
+#include <unistd.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 // ********** C includes ************ //
+
+#include <climits>
 #include <cmath>
 #include <csignal>
 #include <cstdlib>
@@ -56,20 +60,16 @@
 // Versions aliasing //
 ///////////////////////
 
+#define Cpp20 (__cplusplus >= 202002L)
 #define Cpp17 (__cplusplus >= 201702L)
 #define Cpp14 (__cplusplus >= 201402L)
 
-
-////////////////////////////
-// Some specialized print //
-////////////////////////////
-// ------------------------------------------------------- //
 // Useful overload of operator<< into a std::cout stream :
 
 template <class F, class S> 
 std::ostream& operator<<(std::ostream& cout, std::pair<F,S> const & p)
 {
-  cout << " {" << p.first << ", " << p.second << "}" << std::endl;
+  cout << " {" << p.first << ", " << p.second << "}";
   return cout;
 }
 
@@ -77,7 +77,7 @@ template <class K, class V>
 std::ostream& operator<<(std::ostream& cout, std::map<K,V> const & m)
 {
   cout << "{";
-  for (auto const & pair : m) cout << pair;
+  for (auto const & pair : m) cout << pair << std::endl;
   cout << "}\n";
   return cout;
 }
@@ -86,7 +86,7 @@ template <class K, class V>
 std::ostream& operator<<(std::ostream& cout, std::unordered_map<K,V> const & m)
 {
   cout << "{";
-  for (auto const & pair : m) cout << pair;
+  for (auto const & pair : m) cout << pair << std::endl;
   cout << "}\n";
   return cout;
 }
@@ -105,113 +105,218 @@ std::ostream& operator<<(std::ostream& cout, std::array<E,size> const & a)
   return cout;
 }
 
-//////////////
-//   UNITS  //
-//////////////
+///////////////////////////////
+// Variadic helper functions //
+///////////////////////////////
 
-/// @brief Returns a string in the format mm_hh_dd_mm_yy
-std::string time_string()
+namespace Colib
 {
-  std::time_t currentTime = std::time(nullptr);
-  std::tm* timeInfo = std::localtime(&currentTime);
-  if (timeInfo != nullptr) {
-    // Extract hours, day, and year
-    int min  = timeInfo->tm_min;
-    int hour = timeInfo->tm_hour;
-    int day  = timeInfo->tm_mday;
-    int mon  = timeInfo->tm_mon;
-    int year = timeInfo->tm_year % 100; // Get last two digits of the year
+  template<std::size_t I, typename... T>
+  constexpr auto get_ith_element(std::tuple<T...> t) { return std::get<I>(t); }
+}
 
-    std::stringstream ss;
-    // Print the time in the desired format
-    ss << std::setfill('0') 
-       << std::setw(2) << min  << "_" 
-       << std::setw(2) << hour << "_"
-       << std::setw(2) << day  << "_"
-       << std::setw(2) << mon  << "_"
-       << std::setw(2) << year;
-    return ss.str();
-  } else {
-    std::cerr << "Failed to get current time." << std::endl;
-    return "";
+////////////////////////
+// TERMINAL KNOWLEDGE //
+////////////////////////
+
+namespace Colib
+{
+  int getTerminalRows() 
+  {
+    struct winsize w;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1) return 24; // fallback
+    return w.ws_row;
+  }
+  
+  int getTerminalCols() 
+  {
+    struct winsize w;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1) return 80; // fallback
+    return w.ws_col;
   }
 }
 
-/// @brief Returns a string in the format yy_mm_dd_hh_mm
-std::string time_string_inverse()
-{
-  std::time_t currentTime = std::time(nullptr);
-  std::tm* timeInfo = std::localtime(&currentTime);
-  if (timeInfo != nullptr) {
-    // Extract hours, day, and year
-    int min  = timeInfo->tm_min;
-    int hour = timeInfo->tm_hour;
-    int day  = timeInfo->tm_mday;
-    int mon  = timeInfo->tm_mon;
-    int year = timeInfo->tm_year % 100; // Get last two digits of the year
+//////////////////////
+// Time utilitaries //
+//////////////////////
 
-    std::stringstream ss;
-    // Print the time in the desired format
-    ss << std::setfill('0') 
-       << std::setw(2) << year << "_"
-       << std::setw(2) << mon  << "_" 
-       << std::setw(2) << day  << "_"
-       << std::setw(2) << hour << "_"
-       << std::setw(2) << min;
-    return ss.str();
-  } else {
-    std::cerr << "Failed to get current time." << std::endl;
-    return "";
+namespace Colib
+{
+  /// @brief Returns a string in the format mm_hh_dd_mm_yy
+  std::string time_string()
+  {
+    std::time_t currentTime = std::time(nullptr);
+    std::tm* timeInfo = std::localtime(&currentTime);
+    if (timeInfo != nullptr) {
+      // Extract hours, day, and year
+      int min  = timeInfo->tm_min;
+      int hour = timeInfo->tm_hour;
+      int day  = timeInfo->tm_mday;
+      int mon  = timeInfo->tm_mon;
+      int year = timeInfo->tm_year % 100; // Get last two digits of the year
+
+      std::stringstream ss;
+      // Print the time in the desired format
+      ss << std::setfill('0') 
+        << std::setw(2) << min  << "_" 
+        << std::setw(2) << hour << "_"
+        << std::setw(2) << day  << "_"
+        << std::setw(2) << mon  << "_"
+        << std::setw(2) << year;
+      return ss.str();
+    } else {
+      std::cerr << "Failed to get current time." << std::endl;
+      return "";
+    }
+  }
+
+  /// @brief Returns a string in the format yy_mm_dd_hh_mm
+  std::string time_string_fr()
+  {
+    std::time_t currentTime = std::time(nullptr);
+    std::tm* timeInfo = std::localtime(&currentTime);
+    if (timeInfo != nullptr) {
+      // Extract hours, day, and year
+      int min  = timeInfo->tm_min;
+      int hour = timeInfo->tm_hour;
+      int day  = timeInfo->tm_mday;
+      int mon  = timeInfo->tm_mon;
+      int year = timeInfo->tm_year % 100; // Get last two digits of the year
+
+      std::stringstream ss;
+      // Print the time in the desired format
+      ss << std::setfill('0') 
+        << std::setw(2) << year << "_"
+        << std::setw(2) << mon  << "_" 
+        << std::setw(2) << day  << "_"
+        << std::setw(2) << hour << "_"
+        << std::setw(2) << min;
+      return ss.str();
+    } else {
+      std::cerr << "Failed to get current time." << std::endl;
+      return "";
+    }
   }
 }
 
-template <typename T>
-std::string to_binary(T num) {
+//////////////////////
+// Binary interface //
+//////////////////////
+
+namespace Colib
+{
+  template <typename T>
+  std::string to_binary_str(T num) 
+  {
     return std::bitset<sizeof(T) * 8>(num).to_string(); // Uses full bit width of T
+  }
 }
 
-void throw_error(std::string const & message) {throw std::runtime_error(concatenate(CoLib::Color::RED, message, CoLib::Color::RESET));}
-
-std::map<std::string, std::string> error_message = 
+//////////////////////
+// Error management //
+//////////////////////
+namespace Colib
 {
-  {"DEV", "to be done"},
-  {"WOW", "Ok, wow"},
-  {"WTF", "What the fuck ??"}
-};
+  /// @brief Error to throw when a cast was not successful
+  class CastImpossible {
+  public:
+    CastImpossible() noexcept = default;
+    CastImpossible(std::string const & message) noexcept : m_message (message) {}
+    std::string what() {return m_message;}
+    std::string what() const {return m_message;}
+  
+  private:
+    std::string m_message;
+  };
+  
+  template<class T>
+  T string_to(std::string const & string)
+  {
+    T t;
+    std::istringstream iss(string);
+  
+    if (!(iss>>t) || !iss.eof())
+    {
+      throw CastImpossible(concatenate("In string_to<T>(std::string const & string) with string = ",
+      string, " the string can't be casted to ", type_of(t)));
+    }
+    return t;
+  }
 
-auto pauseCo() 
-{
-#ifdef MULTITHREADING
-  if (MTObject::kill) exit(MTSIGEXIT);
-  lock_mutex lock(MTObject::mutex);
-#endif //MULTITHREADING
+  void throw_error(std::string const & message) {throw std::runtime_error(concatenate(Color::RED, message, Color::RESET));}
 
-  std::cout << "Programme paused, please press enter"; 
-  return std::cin.get();
+  std::map<std::string, std::string> error_message = 
+  {
+    {"DEV", "to be done"},
+    {"WOW", "Ok, wow"},
+    {"WTF", "What the fuck ??"}
+  };
 }
 
-auto pauseCo(std::string const & message) 
-{
-#ifdef MULTITHREADING
-  if (MTObject::kill) exit(MTSIGEXIT);
-  lock_mutex lock(MTObject::mutex);
-#endif //MULTITHREADING
 
-  std::cout << message << std::endl;
-  return std::cin.get();
-}
+//////////////////////
+// Pause management //
+//////////////////////
 
-void pauseDebug(std::string const & message = "") 
+namespace Colib
 {
-#ifdef DEBUG
-  if (message == "") pauseCo();
-  else pauseCo(message);
-#endif //DEBUG
+  auto pause(std::string message = "") 
+  {
+  #ifdef COMULTITHREADING
+    if (MTObject::kill) exit(MTSIGEXIT);
+    lock_mutex lock(MTObject::mutex);
+  #endif //COMULTITHREADING
+
+    if (message == "") message = "Programme paused, please press enter";
+    std::cout << message;
+    return std::cin.get();
+  }
+
+  void pauseDebug(std::string const &
+  #ifdef DEBUG
+    message = ""
+  #else //!DEBUG
+    = std::string() // Optimized out without -DDEBUG
+  #endif //DEBUG
+  ) 
+  {
+    // Optimizing out without -DDEBUG :
+  #ifdef DEBUG
+    pause(message);
+  #endif //DEBUG
+  }
+
+  template <class... T>
+  void printPause(T const & ... t)
+  {
+    print(t...);
+    pause();
+  }
+  template <class... T>
+  void printAndPause(T const & ... t)
+  {
+    print(t...);
+    pause();
+  }
 }
 
 ////////////////
 //    Types   //
 ////////////////
+namespace Colib
+{
+  template<class T>
+  std::string type_of(T const & t)
+  {
+    return typeid(t).name();
+  }
+
+  template<class T>
+  std::string type_of()
+  {
+    return typeid(T).name();
+  }
+}
 
 /// @brief Casts a any type into an bool
 template<typename T>
@@ -287,226 +392,313 @@ constexpr inline longlong longlong_cast(T const & t) {return static_cast<longlon
 template<typename T,  typename = typename std::enable_if<std::is_arithmetic<T>::value>::type>
 constexpr inline size_t size_cast(T const & t) {return static_cast<size_t>(t);}
 
-///@brief Check if the given double has integer precision
-bool is_int (double const & x) {return std::trunc(x) == x;}
-
-////////////////////////
-// General converters //
-////////////////////////
-
-class CastImpossible {
-public:
-  CastImpossible() noexcept = default;
-  CastImpossible(std::string const & message) noexcept : m_message (message) {}
-  std::string what() {return m_message;}
-  std::string what() const {return m_message;}
-
-private:
-  std::string m_message;
-};
-
-template<class T>
-T string_to(std::string const & string)
-{
-  T t;
-  std::istringstream iss(string);
-
-  if (!(iss>>t) || !iss.eof())
-  {
-    throw CastImpossible(concatenate("In string_to<T>(std::string const & string) with string = ",
-    string, " the string can't be casted to ", type_of(t)));
-  }
-  return t;
-}
 
 ////////////////
-// Containers //
+// CheckTypes //
 ////////////////
 
-class Bools 
+namespace Colib
 {
-private:
-  bool* m_data = nullptr;
-  size_t m_size = 0;
-  size_t m_reserved_size = 0;
-
-public:
-  Bools() noexcept = default;
-  Bools(size_t size, bool const & value = false) noexcept : m_size(size), m_reserved_size(2*size) {
-    m_data = new bool[m_reserved_size];
-    memset(m_data, value ? 1 : 0, m_size * sizeof(bool));
-  }
-
-  // Copy constructor
-  Bools(const Bools& other) noexcept : m_size(other.m_size), m_reserved_size(2*m_size) {
-    m_data = new bool[m_size];
-    memcpy(m_data, other.m_data, m_size * sizeof(bool));
-  }
-
-  // Move constructor
-  Bools(Bools&& other) noexcept : m_data(other.m_data), m_size(other.m_size), m_reserved_size(other.m_reserved_size) {
-    // Re-initialise the original data in case it is re-used later on
-    other.m_data = nullptr;
-    other.m_size = 0;
-  }
-
-  // Copy assignment
-  Bools& operator=(const Bools& other) noexcept {
-      if (this != &other) {
-        delete[] m_data;
-        m_size = other.m_size;
-        m_reserved_size = other.m_reserved_size;
-        m_data = new bool[m_reserved_size];
-        memcpy(m_data, other.m_data, m_size * sizeof(bool));
-      }
-      return *this;
-  }
-
-  // Move assignment
-  Bools& operator=(Bools&& other) noexcept {
-    if (this != &other) {
-      delete[] m_data;
-      m_data = other.m_data;
-      m_size = other.m_size;
-      other.m_data = nullptr;
-      other.m_size = 0;
-    }
-    return *this;
-  }
-
-  void push_back(bool const & value)
-  {
-    this -> resize(m_size+1);
-    m_data[m_size++] = value;
-  }
-
-  ~Bools() {
-    delete[] m_data;
-  }
-
-  bool       & operator[](size_t const & index)       {
-    return m_data[index];
-  }
-
-  bool const & operator[](size_t const & index) const {
-    return m_data[index];
-  }
-
-  size_t const & size() const {
-    return m_size;
-  }
-
-  void resize(size_t size) {
-         if (m_size == size) return;
-    else if (size>m_reserved_size)
-    {
-      bool* temp = new bool[(m_reserved_size = size*2)];
-      if (m_data) std::memcpy(temp, m_data, m_size*sizeof(bool));
-      delete[] m_data;
-      m_data = temp;
-    }
-    for (;m_size<size;++m_size) m_data[m_size] = false;
-  }
-
-  void resize(size_t size, bool const & value) {
-    if (size>m_reserved_size)
-    {
-      delete[] m_data;
-      m_data = new bool[(m_reserved_size = size*2)];
-    }
-    for (m_size = 0;m_size<size;++m_size) m_data[m_size] = value;
-  }
-
-  auto begin() {return m_data;}
-  auto end()   {return m_data + m_size;}
-
-  auto begin() const {return m_data;}
-  auto end()   const {return m_data + m_size;}
-
-  // Boolean logic :
+  ///@brief Check if the given double has integer precision
+  bool is_int (double const & x) {return std::trunc(x) == x;}
   
-  bool AND() const noexcept
-  {
-    for(auto const & value : *this) if (!value) return false;
+  // Function template that checks if T is a floating-point type
+  template <typename T, typename std::enable_if<std::is_floating_point<T>::value, bool>::type = true>
+  inline constexpr bool is_floating() noexcept {
+    return true;
+  }
+  template <typename T, typename std::enable_if<std::is_floating_point<T>::value, bool>::type = true>
+  inline bool is_floating(T const &) noexcept {
     return true;
   }
   
-  bool OR() const noexcept
-  {
-    for(auto const & value : *this) if (value) return true;
+  // Overload for non-floating-point types
+  template <typename T, typename std::enable_if<!std::is_floating_point<T>::value, bool>::type = true>
+  inline constexpr bool is_floating() noexcept {
     return false;
   }
-
-  bool XOR() const noexcept
-  {
-    bool _found = false;
-    for(auto const & value : *this) if (value)
-    {
-      if(_found) return false;
-      else _found = true;
-    }
-    return _found;
+  template <typename T, typename std::enable_if<!std::is_floating_point<T>::value, bool>::type = true>
+  inline bool is_floating(T const &) noexcept {
+    return false;
   }
-};
-
-std::ostream& operator<<(std::ostream& cout, Bools const & bools)
-{
-  for (auto const b : bools) cout << b << " ";
-  return cout;
+  
+  // Function template that checks if T is a signed type
+  template <typename T, typename std::enable_if<std::is_signed<T>::value, bool>::type = true>
+  inline constexpr bool is_signed() noexcept {
+    return true;
+  }
+  template <typename T, typename std::enable_if<std::is_signed<T>::value, bool>::type = true>
+  inline bool is_signed(T const &) noexcept {
+    return true;
+  }
+  
+  // Overload for unsigned types
+  template <typename T, typename std::enable_if<std::is_unsigned<T>::value, bool>::type = true>
+  inline constexpr bool is_signed() noexcept {
+    return false;
+  }
+  template <typename T, typename std::enable_if<std::is_unsigned<T>::value, bool>::type = true>
+  inline bool is_signed(T const &) noexcept {
+    return false;
+  }
+  
+  // Function template that checks if T is an unsigned type
+  template <typename T, typename std::enable_if<std::is_unsigned<T>::value, bool>::type = true>
+  inline constexpr bool is_unsigned() noexcept {
+    return true;
+  }
+  template <typename T, typename std::enable_if<std::is_unsigned<T>::value, bool>::type = true>
+  inline bool is_unsigned(T const &) noexcept {
+    return true;
+  }
+  
+  // Overload for signed types
+  template <typename T, typename std::enable_if<std::is_signed<T>::value, bool>::type = true>
+  inline constexpr bool is_unsigned() noexcept {
+    return false;
+  }
+  template <typename T, typename std::enable_if<std::is_signed<T>::value, bool>::type = true>
+  inline bool is_unsigned(T const &) noexcept {
+    return false;
+  }
+  
+  template <typename Ttest, typename T, typename std::enable_if<std::is_same<T, Ttest>::value, bool>::type = true>
+  inline constexpr bool is_type_of() noexcept {
+    return true;
+  }
+  template <typename Ttest, typename T, typename std::enable_if<std::is_same<T, Ttest>::value, bool>::type = true>
+  inline bool is_type_of(T const &) noexcept {
+    return true;
+  }
+  
+  template <typename Ttest, typename T, typename std::enable_if<!std::is_same<T, Ttest>::value, bool>::type = true>
+  inline constexpr bool is_type_of() noexcept {
+    return false;
+  }
+  template <typename Ttest, typename T, typename std::enable_if<!std::is_same<T, Ttest>::value, bool>::type = true>
+  inline bool is_type_of(T const &) noexcept {
+    return false;
+  }
 }
 
-using Strings = std::vector<std::string>;
-using Ints = std::vector<int>;
 
-std::string mergeStrings(Strings const & strings, std::string const & sep = "")
+/////////////////////////
+// Homemade Containers //
+/////////////////////////
+
+namespace Colib
 {
-  std::string ret;
-  for (auto const & str : strings) ret += str + sep;
-  return removeLastPart(ret, sep); // Remove the last sep
-}
+  class Bools 
+  {
+  private:
+    bool* m_data = nullptr;
+    size_t m_size = 0;
+    size_t m_reserved_size = 0;
 
-template<class T>
-std::string mergeStrings(std::vector<T> const & strings, std::string const & sep = "")
-{
-  std::string ret;
-  for (auto const & str : strings) ret += std::to_string(str) + sep;
-  return removeLastPart(ret, sep); // Remove the last sep
-}
+  public:
+    Bools() noexcept = default;
+    Bools(size_t size, bool const & value = false) noexcept : m_size(size), m_reserved_size(2*size) {
+      m_data = new bool[m_reserved_size];
+      memset(m_data, value ? 1 : 0, m_size * sizeof(bool));
+    }
 
-template<typename T>
-struct is_container {
-private:
-    template<typename C>
-    static auto test(int) -> decltype(std::begin(std::declval<C>()), std::end(std::declval<C>()), std::true_type());
+    // Copy constructor
+    Bools(const Bools& other) noexcept : m_size(other.m_size), m_reserved_size(2*m_size) {
+      m_data = new bool[m_size];
+      memcpy(m_data, other.m_data, m_size * sizeof(bool));
+    }
 
-    template<typename>
-    static std::false_type test(...);
+    // Move constructor
+    Bools(Bools&& other) noexcept : m_data(other.m_data), m_size(other.m_size), m_reserved_size(other.m_reserved_size) {
+      // Re-initialise the original data in case it is re-used later on
+      other.m_data = nullptr;
+      other.m_size = 0;
+    }
 
-public:
-    static constexpr bool value = decltype(test<T>(0))::value;
-};
+    // Copy assignment
+    Bools& operator=(const Bools& other) noexcept {
+        if (this != &other) {
+          delete[] m_data;
+          m_size = other.m_size;
+          m_reserved_size = other.m_reserved_size;
+          m_data = new bool[m_reserved_size];
+          memcpy(m_data, other.m_data, m_size * sizeof(bool));
+        }
+        return *this;
+    }
 
-// -- unordered_set -- //
+    // Move assignment
+    Bools& operator=(Bools&& other) noexcept {
+      if (this != &other) {
+        delete[] m_data;
+        m_data = other.m_data;
+        m_size = other.m_size;
+        other.m_data = nullptr;
+        other.m_size = 0;
+      }
+      return *this;
+    }
 
-template<class T>
-constexpr bool found (std::unordered_set<T> set, T const & e)
-{
-  return set.find(e) != set.end();
+    void push_back(bool const & value)
+    {
+      this -> resize(m_size+1);
+      m_data[m_size++] = value;
+    }
+
+    ~Bools() {
+      delete[] m_data;
+    }
+
+    bool       & operator[](size_t const & index)       {
+      return m_data[index];
+    }
+
+    bool const & operator[](size_t const & index) const {
+      return m_data[index];
+    }
+
+    size_t const & size() const {
+      return m_size;
+    }
+
+    void resize(size_t size) 
+    {
+          if (m_size == size) return;
+      else if (size>m_reserved_size)
+      {
+        bool* temp = new bool[(m_reserved_size = size*2)];
+        if (m_data) std::memcpy(temp, m_data, m_size*sizeof(bool));
+        delete[] m_data;
+        m_data = temp;
+      }
+      for (;m_size<size;++m_size) m_data[m_size] = false;
+    }
+
+    void resize(size_t size, bool const & value) 
+    {
+      if (size>m_reserved_size)
+      {
+        delete[] m_data;
+        m_data = new bool[(m_reserved_size = size*2)];
+      }
+      for (m_size = 0;m_size<size;++m_size) m_data[m_size] = value;
+    }
+
+    auto begin() {return m_data;}
+    auto end()   {return m_data + m_size;}
+
+    auto begin() const {return m_data;}
+    auto end()   const {return m_data + m_size;}
+
+    // Boolean logic :
+    
+    bool AND() const noexcept
+    {
+      for(auto const & value : *this) if (!value) return false;
+      return true;
+    }
+    
+    bool OR() const noexcept
+    {
+      for(auto const & value : *this) if (value) return true;
+      return false;
+    }
+
+    bool XOR() const noexcept
+    {
+      bool _found = false;
+      for(auto const & value : *this) if (value)
+      {
+        if(_found) return false;
+        else _found = true;
+      }
+      return _found;
+    }
+    
+    friend std::ostream& operator<<(std::ostream& cout, Bools const & bools)
+    {
+      for (auto const b : bools) cout << b << " ";
+      return cout;
+    }
+  };
+
+  using Strings = std::vector<std::string>;
+  using Ints = std::vector<int>; 
+
+  std::string fuseStrings(std::vector<std::string> const & vec, std::string const & sep = " ")
+  {
+    std::ostringstream oss;
+    for (size_t i = 0; i < vec.size(); ++i) 
+    {
+      oss << vec[i];
+      if (i != vec.size() - 1) oss << sep;
+    }
+    return oss.str();
+  }
+
+  template<typename T>
+  struct is_container {
+  private:
+      template<typename C>
+      static auto test(int) -> decltype(std::begin(std::declval<C>()), std::end(std::declval<C>()), std::true_type());
+  
+      template<typename>
+      static std::false_type test(...);
+  
+  public:
+      static constexpr bool value = decltype(test<T>(0))::value;
+  };
+
 }
 
 ///////////
 // MATHS //
 ///////////
 
-template<class T> T positive_modulo(T const & dividend, T const & divisor)
+namespace Colib
 {
-  auto ret = dividend % divisor;
-  if (ret<0) ret+=divisor;
-  return ret;
-}
+  /**
+   * @brief Compiled power calculation, faster than std::pow, but limited to unsigned integer power
+   * @param x : value (any)
+   * @param n : power (unsigned integer)
+   * @return constexpr T 
+   */
+  template<class T>
+  inline constexpr T pow(T x, unsigned int n) {
+      return (n == 0) ? 1 : x * pow(x, n - 1);
+  }
 
-namespace CoLib
-{
+  /**
+   * @brief Compiled power calculation, faster than std::pow, but limited to unsigned integer power
+   * @param x : value (any)
+   * @param n : power (unsigned integer)
+   * @return constexpr T 
+   */
+  template<class T>
+  inline constexpr T abs(T x) { return (x < 0) ? -x : x; }
+
+  /// @brief Gives the biggest number of the given type
+  template <typename T>
+  inline constexpr T big() {
+      // Calculate the number of bits in the type T
+      const int num_bits = sizeof(T) * CHAR_BIT;
+
+      // For signed types, set all bits except the sign bit
+      // For unsigned types, set all bits
+      if (std::is_signed<T>::value) {
+          return ~(static_cast<T>(1) << (num_bits - 1));
+      } else {
+          return ~static_cast<T>(0);
+      }
+  }
+
+  template<class T> T positive_modulo(T const & dividend, T const & divisor)
+  {
+    auto ret = dividend % divisor;
+    if (ret<0) ret+=divisor;
+    return ret;
+  }
+
   template<class T, class... ARGS>
   inline T sum(T i, ARGS... args) {return i+sum(args...);}
 
@@ -514,6 +706,7 @@ namespace CoLib
   inline double mean(ARGS... args) {return double_cast(sum(args...) / sizeof...(args));}
 
   using Point = std::pair<double, double>;
+
   constexpr static Point rotate(double const & x, double const & y, double const & angle) 
   {
     return Point(x * cos(angle) - y * sin(angle), x * sin(angle) + y * cos(angle));
@@ -524,25 +717,69 @@ namespace CoLib
   }
 }
 
+//////////////////////////
+//    ARRAY FUNCTIONS   //
+//////////////////////////
+
+template <typename T, std::size_t N>
+constexpr int find_index(const std::array<T, N>& array, const T& value) 
+{
+  for (std::size_t i = 0; i < N; ++i) if (array[i] == value) return i;
+  return -1;  // Value not found
+} 
+
+template <typename T, std::size_t N>
+constexpr T found(const std::array<T, N>& array, const T& value) 
+{
+  for (std::size_t i = 0; i < N; ++i) if (array[i] == value) return true;
+  return false;  // Value not found
+} 
+
+
+///////////////////////////////////
+//    UNORDERED SETS FUNCTIONS   //
+///////////////////////////////////
+
+template<class T>
+constexpr bool found (std::unordered_set<T> set, T const & e)
+{
+  return set.find(e) != set.end();
+}
+
 
 ///////////////////////////////////
 //    UNORDERED MAPS FUNCTIONS   //
 ///////////////////////////////////
 
 template<typename K, typename V> 
-constexpr inline bool find_key(std::unordered_map<K,V> const & map, K const & key)
+constexpr inline bool key_found(std::unordered_map<K,V> const & map, K const & key)
 {
   typename std::unordered_map<K, V>::const_iterator it = map.find(key);
   return it != map.end();
 }
 
 template<typename K, typename V> 
-constexpr inline bool find_value(std::unordered_map<K,V> const & map, V const & value)
+constexpr inline bool value_found(std::unordered_map<K,V> const & map, V const & value)
 {
   return (std::find_if(map.begin(), map.end(), [&](const auto& pair) {
         return pair.second == value;
     }));
 }
+
+namespace Colib
+{
+  /// @brief Returns the list of keys in a map
+  /// @details This method is only looking in the keys, not the values
+  template<typename K, typename V> 
+  inline std::vector<K> list_of_keys(std::unordered_map<K,V> const & map, bool ordered = false)
+  {
+    std::vector<K> ret;
+    for (auto const & it : map) ret.push_back(it.first);
+    if (ordered) std::sort(ret.begin(), ret.end());
+    return ret;
+  }
+}
+
 
 /////////////////////////
 //    MAPS FUNCTIONS   //
@@ -551,7 +788,7 @@ constexpr inline bool find_value(std::unordered_map<K,V> const & map, V const & 
 /// @brief Returns yes if the key is found in the map
 /// @details This method is only looking in the keys, not in the values
 template<typename K, typename V> 
-inline bool find_key(std::map<K,V> const & map, K const & key)
+constexpr inline bool key_found(std::map<K,V> const & map, K const & key)
 {
   typename std::map<K, V>::const_iterator it = map.find(key);
   return it != map.end();
@@ -570,7 +807,7 @@ inline std::vector<K> list_of_keys(std::map<K,V> const & map)
 /// @brief Returns yes if the value is found in the map
 /// @details This method is only looking in the values, not in the keys
 template<typename K, typename V> 
-inline bool find_value(std::map<K,V> const & map, V const & value)
+inline bool value_found(std::map<K,V> const & map, V const & value)
 {
   return (std::find_if(map.begin(), map.end(), [&](const auto& pair) {
         return pair.second == value;
@@ -637,22 +874,6 @@ inline K get_min_key(std::map<K,V> const & map)
   })->first); 
 }
 
-// template<typename K, typename V, typename NewK>
-// inline auto convert(std::map<K,V> const & map) 
-// {
-//   std::map<NewK, V> ret;
-//   if (map.empty()) return ret;
-//   for (auto const & e : map) 
-//   {
-//     try{
-//        ret.emplace(static_cast<NewK>(e.first), e.second);
-//     } catch (...){
-//       throw std::runtime_error("in convert(map) : types not compatibles");
-//     }
-//   }
-//   return ret;
-// } 
-
 template<typename NewK, typename K, typename V>
 inline auto convert(std::map<K,V> const & map) 
 {
@@ -660,103 +881,104 @@ inline auto convert(std::map<K,V> const & map)
     if (map.empty()) return ret;
   
     for (auto const & e : map) {
-        // Assuming K is 'unsigned short' and NewK is 'int'
-        ret.emplace(static_cast<NewK>(e.first), e.second); // Convert K (unsigned short) to NewK (int)
+        ret.emplace(static_cast<NewK>(e.first), e.second);
     }
   
     return ret;
 }
 
-
-// Cross-containers found function :
-template<typename K, typename V> 
-inline bool found(std::map<K,V> const & map, K const & key) {return find_key(map, key);}
-
-template<typename K, typename V> 
-inline bool found(std::unordered_map<K,V> const & map, K const & key) {return find_key(map, key);}
-
 ////////////////////////////
 //    TEMPLATE HANDLING   //
 ////////////////////////////
 
-template <class T>
+namespace Colib
+{
+  template <class T>
+  #if Cpp17
+  using T_is_number = std::enable_if_t<std::is_arithmetic_v<T>>;
+  #else 
+  using T_is_number = void;
+  #endif // Cpp17
+
+  template<class... T>
+  constexpr std::size_t get_size() {
+      return sizeof...(T);
+  }
+
+  
 #if Cpp17
-using T_is_number = std::enable_if_t<std::is_arithmetic_v<T>>;
-#else 
-using T_is_number = void;
-#endif // Cpp17
 
-template<class... T>
-constexpr std::size_t get_size() {
-    return sizeof...(T);
-}
+  template <typename... Args>
+  struct are_all_arithmetic;
 
-#if Cpp17
+  template <>
+  struct are_all_arithmetic<> : std::true_type {};
 
-template <typename... Args>
-struct are_all_arithmetic;
-
-template <>
-struct are_all_arithmetic<> : std::true_type {};
-
-template <typename First, typename... Rest>
-struct are_all_arithmetic<First, Rest...>
-    : std::conjunction<std::is_arithmetic<First>, are_all_arithmetic<Rest...>> {};
+  template <typename First, typename... Rest>
+  struct are_all_arithmetic<First, Rest...>
+      : std::conjunction<std::is_arithmetic<First>, are_all_arithmetic<Rest...>> {};
 
 #endif //Cpp17
+
+}
+
+
 
 ///////////////////////////
 //   SLOTS AND SIGNALS   // TDB
 ///////////////////////////
 
+namespace Colib
+{
 #if Cpp14
-template<class... ARGS>
-class Signal
-{
-  public:
-
-  Signal() = default;
-  // Signal(std::function<void(ARGS...)> && func) {}
-  // Signal(std::function<void(ARGS...)> & func) {m_signals.emplace_back(func);}
-
-  void operator()(ARGS &&... args){for (auto const & signal : m_signals) signal(std::forward<ARGS>(args)...);}
-
-  void connect(std::function<void(ARGS...)> func)
+  template<class... ARGS>
+  class Signal
   {
-    m_signals.push_back(func);
-  }
-
-  private:
-
-  std::vector<std::function<void(ARGS...)>> m_signals;
-  // std::vector<std::function<void(ARGS...)>> m_signals;
-
-};
-
-class Slots
-{
-  public:
-  Slots() = default;
-
-  // template<class... ARGS>
-  // static void connect(std::function<void(ARGS...)> signal, std::function<void(ARGS...)> slot)
-  // {
-
-  // }
-
-  private:
-
-
-  // std::vector<std::function<void(ARGS...)>> m_slots;
-
-};
+    public:
+  
+    Signal() = default;
+    // Signal(std::function<void(ARGS...)> && func) {}
+    // Signal(std::function<void(ARGS...)> & func) {m_signals.emplace_back(func);}
+  
+    void operator()(ARGS &&... args){for (auto const & signal : m_signals) signal(std::forward<ARGS>(args)...);}
+  
+    void connect(std::function<void(ARGS...)> func)
+    {
+      m_signals.push_back(func);
+    }
+  
+    private:
+  
+    std::vector<std::function<void(ARGS...)>> m_signals;
+    // std::vector<std::function<void(ARGS...)>> m_signals;
+  
+  };
+  
+  class Slots
+  {
+    public:
+    Slots() = default;
+  
+    // template<class... ARGS>
+    // static void connect(std::function<void(ARGS...)> signal, std::function<void(ARGS...)> slot)
+    // {
+  
+    // }
+  
+    private:
+  
+  
+    // std::vector<std::function<void(ARGS...)>> m_slots;
+  
+  };
 #endif //Cpp14
+}
 
 /////////////////////////
 //   SOME COOL STUFF   //
 /////////////////////////
 
-namespace CoLib
+namespace Colib
 {
   void progress_bar(float const & progress_percent, int width = 50)
   {
@@ -774,200 +996,132 @@ namespace CoLib
 
   void short_progress_bar(float const & progress_percent) {progress_bar(progress_percent, 10 );}
   void long_progress_bar (float const & progress_percent) {progress_bar(progress_percent, 100);}
+  
+  template <class T>
+  std::string nicer_double(T const & t, int const & nb_decimals = 0)
+  {
+    auto value = double_cast(t);
+    std::string s;
+        if (value<1.e-9)  {value*=1.e+12; s = " f";}
+    else if (value<1.e-6)  {value*=1.e+9 ; s = " n";}
+    else if (value<1.e-3)  {value*=1.e+6 ; s = " µ";}
+    else if (value<1.e+0)  {value*=1.e+3 ; s = " m";}
+    else if (value<1.e+3)  {value*=1.e+0 ; s = " " ;}
+    else if (value<1.e+6)  {value*=1.e-3 ; s = " k";}
+    else if (value<1.e+9)  {value*=1.e-6 ; s = " M";}
+    else if (value<1.e+12) {value*=1.e-9 ; s = " G";}
 
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(nb_decimals) << value << s;
+    return ss.str();
+  }
 }
 
-template <class T>
-std::string nicer_double(T const & t, int const & nb_decimals = 6)
-{
-  auto value = double_cast(t);
-  std::string s;
-       if (value<1.e-9)  {value*=1.e+12; s = " f";}
-  else if (value<1.e-6)  {value*=1.e+9 ; s = " n";}
-  else if (value<1.e-3)  {value*=1.e+6 ; s = " µ";}
-  else if (value<1.e+0)  {value*=1.e+3 ; s = " m";}
-  else if (value<1.e+3)  {value*=1.e+0 ; s = " " ;}
-  else if (value<1.e+6)  {value*=1.e-3 ; s = " k";}
-  else if (value<1.e+9)  {value*=1.e-6 ; s = " M";}
-  else if (value<1.e+12) {value*=1.e-9 ; s = " G";}
-
-  std::stringstream ss;
-  ss << std::fixed << std::setprecision(nb_decimals) << value << s;
-  return ss.str();
-}
 
 //////////////////////////////////////
 // COMPILE-TIME LOOK UP TABLE (LUT) //
 //////////////////////////////////////
 
-/**
- * @brief Lookup table that can be generated at compile time.
- * @details 
- * Instanciation :
- * constexpr auto myLut = LUT<10> ([](int i) { return i*i; }); 
- * 
- */
-template<std::size_t size, class Generator>
-constexpr auto LUT(Generator&& g)
+namespace Colib
 {
-  // Deduce the return type of the lookup table :
-  using type = std::decay_t<decltype(g(std::size_t{0}))>;
-  // Instanciate the lookup table :
-  std::array<type, size> lut{};
-  // Fill the lookup table using the generator :
-  for (std::size_t i = 0; i<size; ++i) lut[i] = std::forward<Generator>(g)(i);
-  return lut;
-}
-
-/// @brief 
-/// @attention Works only in ordered arrays
-template <typename T, std::size_t N>
-constexpr bool binary_search (std::array<T, N> const & array, T const & value)
-{
-  int low = 0;
-  int high = N - 1;
-
-  while (low <= high) {
-    int mid = (low + high) / 2;
-         if (array[mid] < value) low = mid + 1;
-    else if (array[mid] > value) high = mid - 1;
-    else return true;
+  /**
+   * @brief Lookup table that can be generated at compile time.
+   * @details 
+   * Instanciation :
+   * constexpr auto squares = LUT<10> ([](int i) { return i*i; }); 
+   * 
+   */
+  template<std::size_t size, class Generator>
+  constexpr auto LUT(Generator&& g)
+  {
+    // Deduce the return type of the lookup table :
+    using type = std::decay_t<decltype(g(std::size_t{0}))>;
+    // Instanciate the lookup table :
+    std::array<type, size> lut{};
+    // Fill the lookup table using the generator :
+    for (std::size_t i = 0; i<size; ++i) lut[i] = std::forward<Generator>(g)(i);
+    return lut;
   }
-  return false;  // Value not found
+  
+  /// @brief faster binary_search than std::binary_search, works only in ordered arrays
+  /// @attention Works only in ordered arrays
+  template <typename T, std::size_t N>
+  constexpr bool binary_search (std::array<T, N> const & array, T const & value)
+  {
+    int low = 0;
+    int high = N - 1;
+  
+    while (low <= high) {
+      int mid = (low + high) / 2;
+           if (array[mid] < value) low = mid + 1;
+      else if (array[mid] > value) high = mid - 1;
+      else return true;
+    }
+    return false;  // Value not found
+  }
 }
-
-template <typename T, std::size_t N>
-constexpr int find_index(const std::array<T, N>& array, const T& value) 
-{
-  for (std::size_t i = 0; i < N; ++i) if (array[i] == value) return i;
-  return -1;  // Value not found
-} 
-
-template <typename T, std::size_t N>
-constexpr T found(const std::array<T, N>& array, const T& value) 
-{
-  for (std::size_t i = 0; i < N; ++i) if (array[i] == value) return true;
-  return false;  // Value not found
-} 
 
 //////////////////////////////////
 // MAKE SOME STD FUNC CONSTEXPR //
 //////////////////////////////////
 
+namespace Colib
+{
 #if Cpp17
 
-template <typename T>
-typename std::enable_if_t<std::is_arithmetic_v<T>, T>
-constexpr abs_const(T const & t) {return (t>=0) ? t : -t;}
+  template <typename T>
+  typename std::enable_if_t<std::is_arithmetic_v<T>, T>
+  /// @brief Returns the absolute value of t (can be used at compiled time)
+  constexpr abs_const(T const & t) {return (t>=0) ? t : -t;}
 
 #endif //Cpp17
+}
+
 
 ////////////////////
 // User interface //
 ////////////////////
 
-std::string askUser(std::string message)
+namespace Colib
 {
-  print(message);
-  std::string ret;
-  std::getline(std::cin, ret);
-  return ret;
-}
+  std::string askUser(std::string message)
+  {
+    print(message);
+    std::string ret;
+    std::getline(std::cin, ret);
+    return ret;
+  }
+  
+  bool askUserYN(std::string message)
+  {
+    return (askUser(message) == "y");
+  }
 
-bool askUserYN(std::string message)
-{
-  return (askUser(message) == "y");
 }
 
 ////////////////
 // Algorithms //
 ////////////////
 
-
-/// @brief Calculate the slope for two extremal points, then correct it with the residues of the intermediat points.
-template<class T> double quickSlope(std::vector<T> x, std::vector<T> y)
+namespace Colib
 {
-  if (x.size()!=y.size()) throw_error("quickSlope : x and y don't have the same size !!");
-  auto const & N = x.size()-1;
-  double slope = (y[N]-y[0])/(x[N]-x[0]);
-  double correctionSum = 0;
-  for (size_t i = 1; i<N-1; ++i)
+  /// @brief Calculate the slope for two extremal points, then correct it with the residues of the intermediat points.
+  template<class T> double quickSlope(std::vector<T> x, std::vector<T> y)
   {
-    auto const & dx = x[i]-x[0];
-    auto const & residues = y[i] - (y[0] + slope*dx);
-    correctionSum += residues/dx;
+    if (x.size()!=y.size()) throw_error("quickSlope : x and y don't have the same size !!");
+    auto const & N = x.size()-1;
+    double slope = (y[N]-y[0])/(x[N]-x[0]);
+    double correctionSum = 0;
+    for (size_t i = 1; i<N-1; ++i)
+    {
+      auto const & dx = x[i]-x[0];
+      auto const & residues = y[i] - (y[0] + slope*dx);
+      correctionSum += residues/dx;
+    }
+  
+    double correction = ((N-1) > 0) ? (correctionSum / (N-1)) : 0.0;
+    return slope+correction;
   }
-
-  double correction = ((N-1) > 0) ? (correctionSum / (N-1)) : 0.0;
-  return slope+correction;
 }
-
-// #if (__cplusplus >= 201703L)
-
-// /**
-//  * @brief This class allows one to read one specific format of csv file (see details)
-//  * 
-//  * @details
-//  * 
-//  * The format of the data MUST be the following : 
-//  * 
-//  * [[Name of the columns]]
-//  * [[First row data]]
-//  * [[....]]
-//  * [[Last row data]]
-//  * 
-//  * Then, declare the reader in two steps : 
-//  * 
-//  * first construct the reader using the constructor.
-//  * 
-//  * 
-//  */
-// template<class... T>
-// class CSVReader
-// {
-// public:
-//   CSVReader(std::string const & filename, char const & delim = ';') {this -> open(filename, delim);}
-
-//   bool open(std::string const & filename, char const & delim = ';');
-
-//   operator bool() const & {return m_ok;}
-
-// private:
-//   std::vector<std::string> m_header;
-//   std::vector<std::tuple<T...>> m_data;
-//   bool m_ok = false;
-// };
-
-// template<class... T>
-// bool CSVReader<T...>::open(std::string const & filename, char const & delim)
-// {
-//   // Open file :
-//   std::ifstream file(filename, std::ios::in);
-//   if (!file) {print(filename, "not found"); return (m_ok = false);}
-
-//   // Read names header : 
-//   std::string reader;
-//   std::getline(file, reader);
-//   m_header = getList(reader, delim);
-//   print(m_header);
-
-//   // Read the types header :
-//   while (std::getline(file, reader))
-//   {
-//     std::vector<std::string> typeNames = getList(reader, delim);
-//      if (typeNames.size() != sizeof...(T))
-//     {
-//         // Handle the case where the number of types in the header
-//         // doesn't match the number of template arguments.
-//         print("Error: Number of types in the header doesn't match the template arguments.");
-//         return (m_ok = false);
-//     }
-//   }
-
-
-//   return true;
-// }
-
-// #endif //(__cplusplus >= 201703L)
 
 #endif //LIBCO_HPP

@@ -1,5 +1,5 @@
-#ifndef HITSIPM
-#define HITSIPM
+#ifndef HITSIPM_HPP
+#define HITSIPM_HPP
 
 #include "LibCo/libCo.hpp"
 
@@ -51,7 +51,7 @@ private:
   size_t m_size = _size;
 };
 
-#endif //HITSIPM
+#endif //HITSIPM_HPP
 
 
 // /// @brief @deprecated

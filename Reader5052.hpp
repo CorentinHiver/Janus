@@ -57,16 +57,16 @@ public:
 
   void initOutput()
   {
-    if (!m_datafile.is_open()) throw_error("Open the datafile before initializing the output");
+    if (!m_datafile.is_open()) Colib::throw_error("Open the datafile before initializing the output");
     if (m_output_init) return;
     m_tree = new TTree("SiPM","SiPM");
-    m_tree->SetDirectory(nullptr);
-    createBranch(m_tree, &m_size, "size");
-    createBranch(m_tree, &m_hit.timestamp, "timestamp");
-    createBranchArray(m_tree, &m_hit.HGs , "HG" , "size");
-    createBranchArray(m_tree, &m_hit.LGs , "LG" , "size");
-    createBranchArray(m_tree, &m_hit.ToTs, "ToT", "size");
-    createBranchArray(m_tree, &m_hit.ToAs, "ToA", "size");
+    // m_tree->SetDirectory(nullptr);
+    Colib::createBranch(m_tree, &m_size, "size");
+    Colib::createBranch(m_tree, &m_hit.timestamp, "timestamp");
+    Colib::createBranchArray(m_tree, &m_hit.HGs , "HG" , "size");
+    Colib::createBranchArray(m_tree, &m_hit.LGs , "LG" , "size");
+    Colib::createBranchArray(m_tree, &m_hit.ToTs, "ToT", "size");
+    Colib::createBranchArray(m_tree, &m_hit.ToAs, "ToA", "size");
 
     if (m_autoSave) m_tree -> SetAutoSave();
     
@@ -77,14 +77,16 @@ public:
   {
     if (filename != "") m_filename = filename;
     m_datafile.open(m_filename,std::ios::binary | std::ios::in);
-    if (size_file_conversion(size_file(m_datafile), "o", "Go") > 1)
+    // print(size_file_conversion(size_file(m_datafile), "o", "Mo"), "Go");
+    if (size_file_conversion(size_file(m_datafile), "o", "Mo") > 100)
     {
+      print("Autosaving on");
       m_autoSave = true;
       if (m_output_init) m_tree -> SetAutoSave(); // If m_tree already created, apply it directly
     }
     if (!m_datafile.is_open())
     {
-      throw_error("Could not open file '"+ m_filename+"'");
+      Colib::throw_error("Could not open file '"+ m_filename+"'");
       return;
     }
     readHeader();   
@@ -92,7 +94,7 @@ public:
 
   void readHeader()
   {
-    if (!m_datafile.is_open()) throw_error("Open the datafile before reading the header");
+    if (!m_datafile.is_open()) Colib::throw_error("Open the datafile before reading the header");
     if (m_header_read) return;
 
     // Read Data Format Version
@@ -100,8 +102,8 @@ public:
     m_data_version = std::to_string(tmp_8) + ".";
     m_data_format = 10 * tmp_8;
     read_buff(&tmp_8);
-    m_data_format += tmp_8;
     m_data_version += std::to_string(tmp_8);
+    m_data_format += tmp_8;
 
     for (int i = 0; i < 3; ++i) 
     {
@@ -116,22 +118,22 @@ public:
       read_buff(&m_run_number);
     }
 
-    read_buff(&m_acquisition_mode); // Read m_acquisition_mode
+    read_buff(&m_acquisition_mode);
 
     if (m_data_format >= 31) 
     { // From V3.1 the header include OutFileUnit(8bits), EN_BIN (16bits), LSB_ns (32bits, float) 
-      read_buff(&m_en_bin); // EnBin
-      read_buff(&m_time_unit); // Is time in LSB (0) or ns (1)
-      read_buff(&m_LSB_ns); // Value of LSB in ns
+      read_buff(&m_en_bin);    // EnBin
+      read_buff(&m_time_unit); // Time stored in LSB (0) or ns (1)
+      read_buff(&m_LSB_ns);    // Value of LSB in ns (useless if m_time_unit = 1)
     }
 
     read_buff(&m_start_run);
 
     // Calculate the file size :
-    m_data_begin_pos = m_datafile.tellg(); // Data starts after the header, hence current position
-    m_datafile.seekg(0, std::ios::end); // Go to the end of the file
-    m_data_end_pos = m_datafile.tellg(); // Register the position of the end of the file
-    m_data_size = m_data_end_pos - m_data_begin_pos; // Calculate size
+    m_data_begin_pos = m_datafile.tellg();             // Data starts after the header, hence current position
+    m_datafile.seekg(0, std::ios::end);                // Go to the end of the file
+    m_data_end_pos = m_datafile.tellg();               // Register the position of the end of the file
+    m_data_size = m_data_end_pos - m_data_begin_pos;   // Calculate size
     m_datafile.seekg(m_data_begin_pos, std::ios::beg); // Returning to the beginning of the data
 
     m_header_read = true;
@@ -140,11 +142,10 @@ public:
 
   bool readEvent()
   {
-    m_hit.reset(); // Reset hit from last event (event means a hit in caen documentation)
-    
-    std::size_t read_size = 0; // Increment the read size for every read_buff call until its size exceeds the size of the event in bytes (m_event_bin_size)
-    read_buff(&m_event_bin_size , read_size);
-    if (m_datafile.eof()) return false; // eof is activated only after a failed reading
+    m_hit.reset();                            // Reset hit from last event (event means a hit in caen documentation)
+    std::size_t read_size = 0;                // Increment the read size for every read_buff call until its size exceeds the size of the event in bytes (m_event_bin_size)
+    read_buff(&m_event_bin_size , read_size); // Tries to read the data stream
+    if (m_datafile.eof()) return false;       // eof is activated only after a failed reading
 
     read_buff(&m_board          , read_size); // Read the board type
     read_buff(&m_hit.timestamp  , read_size); // Read the timestamp
@@ -161,13 +162,13 @@ public:
       read_buff(&m_channel_mask, read_size);
     }
 
-    if (m_hit.hit_id % int(1e4) == 0) print(nicer_double(m_hit.hit_id, 0));
+    if (m_hit.hit_id % int(1e4) == 0) print(Colib::nicer_double(m_hit.hit_id, 0));
     
     while (read_size < m_event_bin_size)
     { // Looping through all the written channels :
            if (m_acquisition_mode & DTQ_TSPECT) readTimeOrSpectroChannel(read_size); // Spect Or Time
       else if (m_acquisition_mode & DTQ_COUNT ) readCountChannel        (read_size); // Count mode
-      else throw_error("Don't know acquisition mode "+std::to_string(int(m_acquisition_mode)));
+      else Colib::throw_error("Don't know acquisition mode "+std::to_string(int(m_acquisition_mode)));
       
       if (!timingMode) ++m_hit.number_hits;
     }
@@ -195,19 +196,19 @@ public:
     if (data_type & TOA) {
       if (m_time_unit) { // Default is 0. If ver > 3.1 it can be 1, that means time is given as float
         read_buff(&tmp_f  , read_size);
-        m_hit.ToAs[channel_id] = static_cast<double>(tmp_f  );
+        m_hit.ToAs[channel_id] = double_cast(tmp_f  );
       } else {
         read_buff(&tmp_u32, read_size);
-        m_hit.ToAs[channel_id] = static_cast<double>(tmp_u32)/m_LSB_ns;
+        m_hit.ToAs[channel_id] = double_cast(tmp_u32)/m_LSB_ns;
       }
     }
     if (data_type & TOT) {
       if (m_time_unit) { // Default is 0. If ver > 3.1 it can be 1, that means time is given as float
         read_buff(&tmp_f  , read_size);
-        m_hit.ToTs[channel_id] = static_cast<double>(tmp_f  );
+        m_hit.ToTs[channel_id] = double_cast(tmp_f  );
       } else {
         read_buff(&tmp_u16, read_size);
-        m_hit.ToTs[channel_id] = static_cast<double>(tmp_u16)/m_LSB_ns;
+        m_hit.ToTs[channel_id] = double_cast(tmp_u16)/m_LSB_ns;
       }
     }
     if (data_type == 0) 
@@ -232,6 +233,19 @@ public:
     m_tree -> Write();
     file   -> Close();
     print(filename, "written");
+  }
+
+  void writeTo(std::string const & filename, std::string const & mode)
+  {
+    m_file = TFile::Open(filename.c_str(), mode.c_str());
+    m_file   -> cd   ();
+  }
+
+  void write()
+  {
+    m_tree -> Write();
+    print(m_tree->GetName(), "written");
+    m_file -> Close();
   }
   
   bool const end() {return m_datafile.eof();}
@@ -265,6 +279,7 @@ private:
 
   // Attributes :
 
+  TFile * m_file = nullptr;
   std::ifstream m_datafile;
   std::string m_filename;
   HitSiPM<_size> m_hit;

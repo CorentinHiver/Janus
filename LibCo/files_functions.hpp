@@ -7,17 +7,27 @@
 
 #include <algorithm>
 #include <dirent.h>
-#include <filesystem>
 #include <fstream>
 #include <glob.h>
 #include <iostream>
 #include <map>
-#if __cplusplus >= 201703L
-  namespace fs = std::filesystem;
-#else 
-  #warning ("In version of c++ < 17, '...' fold expression not defined, and <filesystem> not loaded. Some parts of the code might not behave as expected...")
-#endif // C++ 17
 
+#if __GNUC__ >= 9 // g++ version
+	#include <filesystem>
+  #if __cplusplus >= 201703L
+    #include <filesystem>
+    namespace fs = std::filesystem;
+  #else 
+    #warning ("In version of c++ < 17, '...' fold expression not defined, and <filesystem> not loaded. Some parts of the code might not behave as expected...")
+  #endif // C++ 17
+#else // __GNUC__ < 9 
+	#include <experimental/filesystem>
+  #if __cplusplus >= 201703L
+	  namespace fs = std::experimental::filesystem;
+  #else 
+    #warning ("In version of c++ < 17, '...' fold expression not defined, and <filesystem> not loaded. Some parts of the code might not behave as expected...")
+  #endif // C++ 17
+#endif
 //----------------------------------------------------//
 //       General files and folders manipulations      //
 //----------------------------------------------------//
@@ -53,7 +63,7 @@ float size_file_conversion(float const & size, std::string const & unit_i, std::
 
 float size_file(std::ifstream& file, std::string const & unit = "o")
 {
-  auto const init = file.tellg();// Register inital place in the file
+  auto const init = file.tellg();
   file.seekg(0, std::ios::end);
   auto const ret = file.tellg();
   file.seekg(init);// Go back to inital place in the file
@@ -112,7 +122,7 @@ bool folder_exists(std::string folderName, bool const & verbose)
 {
   push_back_if_none(folderName, '/');
   if (folder_exists(folderName)) return true;
-  if (verbose) std::cout << "Folder " << folderName << " not found..." << std::endl;
+  if (verbose) print("Folder ", folderName, " not found...");
   return false;
 }
 
@@ -125,9 +135,9 @@ void create_folder_if_none(std::string const & folderName)
   }
   if(!folder_exists(folderName))
   {
-  #ifdef MULTITHREADING
+  #ifdef COMULTITHREADING
     lock_mutex lock(MTObject::mutex);
-  #endif //MULTITHREADING
+  #endif //COMULTITHREADING
     print("Creating folder", folderName);
     // mkdir -p to create the full path if needed (otherwise crashes if some directory of the path is missing)
     system(("mkdir -p "+folderName).c_str());
@@ -200,7 +210,7 @@ std::vector<std::string> list_files_in_folder
   struct dirent *file = nullptr;
   DIR *dp = nullptr;
   dp = opendir(foldername.c_str());
-  if (dp == nullptr) {std::cout << "Folder " << foldername << " not found..." << std::endl; return ret;}
+  if (dp == nullptr) {print("Folder ", foldername, " not found..."); return ret;}
   std::string name = "";
   while ( (file = readdir(dp)))
   {
@@ -225,7 +235,7 @@ std::vector<std::string> list_file_names_in_folder
   struct dirent *file = nullptr;
   DIR *dp = nullptr;
   dp = opendir(foldername.c_str());
-  if (dp == nullptr) {std::cout << "Folder " << foldername << " not found..." << std::endl; return ret;}
+  if (dp == nullptr) {print("Folder ", foldername, " not found..."); return ret;}
   std::string name = "";
   while ( (file = readdir(dp)))
   {
@@ -308,6 +318,7 @@ template <class N, class D> std::string percent(N const & n, D const & d)
   return (std::to_string(100*static_cast<double>(n)/static_cast<double>(d))+"%");
 }
 
+/// @brief TODO
 template<class Index, class T>
 class CoDataFrame
 {
@@ -414,10 +425,10 @@ private:
   std::string m_folder;
 };
 
-std::ostream& operator<<(std::ostream& cout, Folder const & folder)
+std::ostream& operator<<(std::ostream& out, Folder const & folder)
 {
-  cout << folder.string();
-  return cout;
+  out << folder.string();
+  return out;
 }
 
 // Folder operator+(std::string const & string, Folder const & folder) { return (string + folder.string());}
@@ -467,7 +478,14 @@ public:
   auto size() const {return m_folders.size();}
 
   auto begin() const {return m_folders.begin();}
-  auto end  () const {return m_folders.end();}
+  auto end  () const {return m_folders.end  ();}
+  auto begin()       {return m_folders.begin();}
+  auto end  ()       {return m_folders.end  ();}
+
+  auto const & front() const {return m_folders.front();}
+  auto const & back () const {return m_folders.back ();}
+  auto         front()       {return m_folders.front();}
+  auto         back ()       {return m_folders.back ();}
 
   auto const & list() const {return m_folders;}
   auto const & get()  const {return m_folders;}
@@ -479,11 +497,11 @@ private:
   std::vector<Folder> m_folders;
 };
 
-std::ostream& operator<<(std::ostream& cout, Folders const & folders)
+std::ostream& operator<<(std::ostream& out, Folders const & folders)
 {
   auto const & vector = folders.get();
-  for (auto folder : vector) cout << folder << " ";
-  return cout;
+  for (auto folder : vector) out << folder << " ";
+  return out;
 }
 
 /**
@@ -507,7 +525,7 @@ public:
   /// @brief Turns a C string to a path, creating it if create = true and it doesn't already exists
   Path(const char* c_str, bool const & create = false) : m_path(std::string(c_str)) {loadPath(create);}
 
-  void makeFolderList() {m_recursive_folders = getList(m_path,"/");}
+  void makeFolderList() {m_recursive_folders = getList(m_path,"/", true);}
 
   int  nbFiles() {return nb_files_in_folder(m_path);}
   bool exists() {return m_exists;}
@@ -515,14 +533,15 @@ public:
   bool make() { create_folder_if_none(m_path); return m_exists = true;}
   static bool make (std::string path_name) {Path _path(path_name); return (_path.make());}
 
-  Path & addFolder(Folder const & folder)
-  {
-    if (file_exists(m_path+=folder.get()))
-    {
-      m_recursive_folders.push_back(folder.name());
-    }
-    return *this;
-  }
+  // Path & addFolder(Folder const & folder)
+  // {
+  //   if (file_exists(m_path+=folder.get()))
+  //   {
+  //     m_recursive_folders.push_back(folder.name());
+  //   }
+  //   cleanPath();
+  //   return *this;
+  // }
 
   std::string const & get() const {return m_path;}
   std::string const & string() const {return(get());}
@@ -530,13 +549,17 @@ public:
   auto c_str() {return m_path.c_str();}
 
   std::string operator+(std::string const & addString) {return (m_path+addString);}
-  std::string operator+(const char* addString) {return (m_path+static_cast<std::string>(addString));}
-  Path operator+(Folder const & folder) {return Path(m_path+folder.get());}
+  std::string operator+(const char* addString) {return (m_path + static_cast<std::string>(addString));}
+  Path operator+(Folder const & folder) {return Path(m_path + folder.get());}
 
-  Folder const & operator[] (uint const & i) const {return m_recursive_folders[i];}
-  Folder const & folder() const {return m_recursive_folders.get().back();}
+  /// @brief Returns the number of folders composing the path
   auto size() const {return m_recursive_folders.size();}
+  /// @brief Returns the list of folders composing the path
   Folders const & getFolders() const {return m_recursive_folders;}
+  /// @brief Returns the ith folder from the path
+  Folder const & operator[] (size_t const & i) const {return ( (i<this->size()) ? m_recursive_folders[i] : m_recursive_folders.back());}
+  /// @brief Returns the folder's name (i.e., without the whole path)
+  Folder const & folder() const {return m_recursive_folders.get().back();}
 
   Path & operator=(std::string const & inputString)
   {
@@ -563,7 +586,7 @@ public:
     return *this;
   }
 
-  Path & operator+=(std::string const & addString)
+  Path const & operator+=(std::string const & addString)
   {
     auto str = addString;
     push_back_if_none(str, '/');
@@ -580,9 +603,9 @@ private:
 
   void loadPath(bool const & create = false)
   {
-  #ifdef MULTITHREADING
+  #ifdef COMULTITHREADING
     // lock_mutex lock(MTObject::mutex);
-  #endif //MULTITHREADING
+  #endif //COMULTITHREADING
 
     m_recursive_folders.clear();
     if (m_path[0]=='/')
@@ -642,10 +665,10 @@ private:
   Folders m_recursive_folders;
 };
 
-std::ostream& operator<<(std::ostream& cout, Path const & p)
+std::ostream& operator<<(std::ostream& out, Path const & p)
 {
-  cout << p.get();
-  return cout;
+  out << p.get();
+  return out;
 }
 
 /**
@@ -910,10 +933,10 @@ private:
 };
 std::string operator+(Path const & path, Filename const & filename) {return path.get() + filename.get();}
 
-std::ostream& operator<<(std::ostream& cout, File const & file)
+std::ostream& operator<<(std::ostream& out, File const & file)
 {
-  cout << file.get();
-  return cout;
+  out << file.get();
+  return out;
 }
 
 #endif //FILES_HPP
