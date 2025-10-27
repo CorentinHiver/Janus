@@ -24,6 +24,7 @@ files=(
     randomCo.hpp
     string_functions.hpp
     vector_functions.hpp
+    libRootHeader.hpp
 )
 
 for file in "${files[@]}"; do
