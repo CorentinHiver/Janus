@@ -36,10 +36,10 @@ public:
     // else if (value == "ToA") for (int hit = 0; hit < m_tree->GetEntries(); ++hit) histos.at(id) -> Fill(ToA);
     // else if (value == "ToT") for (int hit = 0; hit < m_tree->GetEntries(); ++hit) histos.at(id) -> Fill(ToT);
     
-         if (value ==  "HG") {for (int hit = 0; hit < m_tree->GetEntries(); ++hit) {for (int id{}; id<this->m_size; ++id) {histos[id] -> Fill(HGs [id]);}}}
-    else if (value ==  "LG") {for (int hit = 0; hit < m_tree->GetEntries(); ++hit) {for (int id{}; id<this->m_size; ++id) {histos[id] -> Fill(LGs [id]);}}}
-    else if (value == "ToA") {for (int hit = 0; hit < m_tree->GetEntries(); ++hit) {for (int id{}; id<this->m_size; ++id) {histos[id] -> Fill(ToAs[id]);}}}
-    else if (value == "ToT") {for (int hit = 0; hit < m_tree->GetEntries(); ++hit) {for (int id{}; id<this->m_size; ++id) {histos[id] -> Fill(ToTs[id]);}}}
+         if (value ==  "HG") {for (int hit = 0; hit < m_tree->GetEntries(); ++hit) {for (int id{}; id<this->m_size; ++id) {histos[id] -> Fill(this->HGs [id]);}}}
+    else if (value ==  "LG") {for (int hit = 0; hit < m_tree->GetEntries(); ++hit) {for (int id{}; id<this->m_size; ++id) {histos[id] -> Fill(this->LGs [id]);}}}
+    else if (value == "ToA") {for (int hit = 0; hit < m_tree->GetEntries(); ++hit) {for (int id{}; id<this->m_size; ++id) {histos[id] -> Fill(this->ToAs[id]);}}}
+    else if (value == "ToT") {for (int hit = 0; hit < m_tree->GetEntries(); ++hit) {for (int id{}; id<this->m_size; ++id) {histos[id] -> Fill(this->ToTs[id]);}}}
     
 
     auto c = new TCanvas(name.c_str(), "spectra map");
@@ -66,30 +66,10 @@ public:
     if (this->m_size != xbins*ybins) warning(xbins, "x", ybins, "bins !=", this->m_size, "bins !!");
     auto name = "hitmap_"+std::to_string(map_id++);
     auto map = new TH2F(name.c_str(), ("HitMap"+value).c_str(), xbins,0,xbins, ybins,0,ybins);
-    if (value == "HG" ) for (int i = 0; i<this->m_size; ++i) 
-    {
-      double x = h2->GetXaxis()->GetBinCenter(i);
-      double y = h2->GetYaxis()->GetBinCenter(j);
-      map->SetBinContent(i, (this-> HGs)[i]);
-    }
-    else if (value == "LG" ) for (int i = 0; i<this->m_size; ++i) 
-    {
-      double x = h2->GetXaxis()->GetBinCenter(i);
-      double y = h2->GetYaxis()->GetBinCenter(j);
-      map->SetBinContent(i, (this-> LGs)[i]);
-    }
-    else if (value == "ToA") for (int i = 0; i<this->m_size; ++i) 
-    {
-      double x = h2->GetXaxis()->GetBinCenter(i);
-      double y = h2->GetYaxis()->GetBinCenter(j);
-      map->SetBinContent(i, (this->ToAs)[i]);
-    }
-    else if (value == "ToT") for (int i = 0; i<this->m_size; ++i) 
-    {
-      double x = h2->GetXaxis()->GetBinCenter(i);
-      double y = h2->GetYaxis()->GetBinCenter(j);
-      map->SetBinContent(i, (this->ToTs)[i]);
-    }
+         if (value == "HG" ) for (int i = 0; i<this->m_size; ++i) map->SetBinContent(i, (this-> HGs)[i]);
+    else if (value == "LG" ) for (int i = 0; i<this->m_size; ++i) map->SetBinContent(i, (this-> LGs)[i]);
+    else if (value == "ToA") for (int i = 0; i<this->m_size; ++i) map->SetBinContent(i, (this->ToAs)[i]);
+    else if (value == "ToT") for (int i = 0; i<this->m_size; ++i) map->SetBinContent(i, (this->ToTs)[i]);
     map->Draw();
     return map;
   }
