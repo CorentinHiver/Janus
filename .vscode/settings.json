@@ -84,7 +84,8 @@
     "csetjmp": "cpp",
     "source_location": "cpp",
     "*.inc": "cpp",
-    "*.def": "c"
+    "*.def": "c",
+    "allocator": "cpp"
   },
   "makefile.configureOnOpen": false
 }

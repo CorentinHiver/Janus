@@ -42,22 +42,22 @@ private:
     std::array<std::string, 2>          t_unit_tstamp;  // = { "LSB", "us" };  // time unit in the csv file header for timestamp
     std::string                         t_s_sw_version;
     std::string                         t_s_data_version;   // Version of Data format as string
-    uint8_t                             t_force_ns;
-    uint16_t                            t_en_bin;
-    uint8_t                             t_time_unit;    // ToA or ToT written as int (LSB) or float (ns)
-    float                               t_LSB_ns;
-    uint8_t                             t_data_format;  // Version of Data format
-    uint8_t                             t_acq_mode;
-    uint16_t                            t_run_num;      // Run number of the binary file
-    uint16_t                            t_evt_size;
-    uint16_t                            t_brd_ver;      // Type of FERS board (5202, 5203 ...)
-    uint8_t                             t_brd;
-    double                              t_tstamp;
-    double                              t_rel_tstamp;   // Relative Timestamp of an external trigger
-    uint64_t                            t_trigger_ID;
-    uint64_t                            t_ch_mask;
-    uint16_t                            t_num_of_hit;
-    uint64_t                            t_start_run;    // Start of acquisition (epoch ms)
+    uint8_t                             t_force_ns = 0;
+    uint16_t                            t_en_bin = 0;
+    uint8_t                             t_time_unit = 0;    // ToA or ToT written as int (LSB) or float (ns)
+    float                               t_LSB_ns = 0;
+    uint8_t                             t_data_format = 0;  // Version of Data format
+    uint8_t                             t_acq_mode = 0;
+    uint16_t                            t_run_num = 0;      // Run number of the binary file
+    uint16_t                            t_evt_size = 0;
+    uint16_t                            t_brd_ver = 0;      // Type of FERS board (5202, 5203 ...)
+    uint8_t                             t_brd = 0;
+    double                              t_tstamp = 0;
+    double                              t_rel_tstamp = 0;   // Relative Timestamp of an external trigger
+    uint64_t                            t_trigger_ID = 0;
+    uint64_t                            t_ch_mask = 0;
+    uint64_t                            t_start_run = 0;    // Start of acquisition (epoch ms)
+    uint16_t                            t_num_of_hit = 0;
     std::vector<uint8_t>                t_ch_id;
     std::vector<uint8_t>                t_data_type;
     std::vector<uint16_t>               t_PHA_LG;
@@ -109,8 +109,8 @@ t_BinaryData::t_BinaryData(uint8_t force_ns, uint8_t mode) {
 t_BinaryData::t_BinaryData(uint8_t mode, std::ofstream& csvfile, uint8_t force_ns, uint8_t format_version, uint16_t en_bin, uint8_t toa_bin) { // When header is read in the main
     // The other parameters read in the main can be passed as a map. To be implemented
     t_BinaryData::Init(force_ns, mode);
-    t_BinaryData::ReadHeaderBinfile(binfile);
-    t_BinaryData::ComputeBinfileSize(binfile);
+    //t_BinaryData::ReadHeaderBinfile(binfile);
+    //t_BinaryData::ComputeBinfileSize(binfile);
     t_BinaryData::WriteCsvHeader(csvfile);
 }
 

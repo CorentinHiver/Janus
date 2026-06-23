@@ -1,13 +1,10 @@
-HEADERS=read5052.cpp HitSiPM.hpp Reader5052.hpp LibCo/*
+HEADERS=janus2root.cpp HitSiPM.hpp Reader5052.hpp LibCo/*
 
 exec: $(HEADERS)
-	# rm exec
-	g++ -o exec read5052.cpp `root-config --cflags` `root-config --glibs` -g
+	g++ -o janus2root janus2root.cpp `root-config --cflags` `root-config --glibs` -g
 
 debug: $(HEADERS)
-	rm exec
-	g++ -o exec read5052.cpp `root-config --cflags` `root-config --glibs` -g -DDEBUG
+	g++ -o janus2root janus2root.cpp `root-config --cflags` `root-config --glibs` -g -DDEBUG
 
 opt: $(HEADERS)
-	# rm exec
-	g++ -o exec read5052.cpp `root-config --cflags` `root-config --glibs` -O2
+	g++ -o janus2root janus2root.cpp `root-config --cflags` `root-config --glibs` -O3

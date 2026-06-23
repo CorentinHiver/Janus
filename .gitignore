@@ -1,2 +1,8 @@
 DATA/
 *.root
+BinToCsv/
+Documentation/
+Analyse/images/
+ferslib/doc/
+OLD/
+Doc/
