@@ -1,7 +1,4 @@
-// #include "DataReader_5202.hpp" // First version
-#include "Reader5052.hpp" // Second version
-// #include "JanusSession.hpp"
-#include "Analyse/RootHitSiPM.hpp"
+#include "Reader5052.hpp"
 
 using namespace Colib;
 
@@ -12,16 +9,24 @@ int main(int argc, char** argv)
   {
     Reader5052<64> reader(argv[i]);
     auto rootFilename = removeExtension(removePath(argv[i]))+".root";
+    if (fileExists(rootFilename)) {print("Skipping already existing", rootFilename); continue;}
     reader.initRootOutput(rootFilename, "recreate");
-    Colib::pauseDebug();
-    while(reader.readEvent()) 
-    {
-      reader.fillTree();
-      debug(reader.getHit());
-      debug("hit cursor", reader.getCursor());
-      Colib::pauseDebug();
-    }
-    reader.write();
+    reader.convert();
   }
   return 0;
 }
+
+// pauseDebug();
+// while(reader.readEvent()) 
+// {
+// #ifdef SAFE
+//   try{reader.fillTree();}
+//   catch(...){reader.write(); return 1;}
+// #else // not SAFE
+//   reader.fillTree();
+// #endif // SAFE
+//   debug(reader.getHit());
+//   debug("hit cursor", reader.getCursor());
+//   pauseDebug();
+// }
+// reader.write();

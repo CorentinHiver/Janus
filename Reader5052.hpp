@@ -3,8 +3,8 @@
 #ifndef READER5052_HPP
 #define READER5052_HPP
 
-#include "LibCo/libRoot.hpp"
-#include "HitSiPM.hpp"
+#include "RootHitSiPM.hpp"
+
 void ms_to_date(long long ms, int timeZone = 0)
 {
   time_t sec = (time_t)(ms / 1000);
@@ -91,41 +91,27 @@ public:
     }
   }
 
-  void setMaxHits(int nb)
-  {
-    m_maxHits = nb;
-    m_maxHitsSet = true;
-  }
-
-  void initOutput()
+  void initOutTree()
   {
     if (!m_datafile.is_open()) Colib::throw_error("Open the datafile before initializing the output");
     if (m_output_init) return;
-    m_tree = new TTree("SiPM","SiPM");
-    // m_tree->SetDirectory(nullptr);
-    Colib::createBranch(m_tree, &m_size, "size");
-    Colib::createBranch(m_tree, &m_hit.timestamp, "timestamp");
-    Colib::createBranchArray(m_tree, &m_hit.HGs , "HG" , "size");
-    Colib::createBranchArray(m_tree, &m_hit.LGs , "LG" , "size");
-    Colib::createBranchArray(m_tree, &m_hit.ToTs, "ToT", "size");
-    Colib::createBranchArray(m_tree, &m_hit.ToAs, "ToA", "size");
-
+    m_tree = new TTree("SiPM", "SiPM");
+    m_hit.writeTo(m_tree);
     if (m_autoSave) m_tree -> SetAutoSave();
-    
     m_output_init = true;
   }
 
-  void setRootOutput(std::string const & filename, std::string const & mode)
+  void setRootOutput(std::string const & filename, std::string const & mode, const char *ftitle = "", int compress = 101, int netopt = 0)
   {
     m_rootFilename = filename;
-    m_file = TFile::Open(filename.c_str(), mode.c_str());
-    m_file   -> cd   ();
+    m_file = TFile::Open(filename.c_str(), mode.c_str(), ftitle, compress, netopt);
+    m_file -> cd();
   }
 
   /// @brief Recommended initialisation method (you won't have to worry about ROOT memory management)
   void initRootOutput(std::string const & filename, std::string const & mode)
   {
-    initOutput();
+    initOutTree();
     setRootOutput(filename, mode);
   }
 
@@ -137,7 +123,7 @@ public:
       error(m_filename, "is not a .dat file !!");
       return;
     }
-    m_datafile.open(m_filename,std::ios::binary | std::ios::in);
+    m_datafile.open(m_filename, std::ios::binary);
     if (Colib::sizeFileConversion(Colib::sizeFile(m_datafile), "o", "Mo") > 100)
     {
       print("Autosaving on");
@@ -181,10 +167,11 @@ public:
     read_buff(&m_acquisition_mode);
 
     if (m_data_format >= 31) 
-    { // From V3.1 the header include OutFileUnit(8bits), EN_BIN (16bits), LSB_ns (32bits, float) 
+    { // From V3.1 the header include OutFileUnit(8 bits), EN_BIN (16 bits), LSB_ns (32 bits, float) 
       read_buff(&n_spectro_bin);    // Number of spectroscopy channels (typically 4096)
       read_buff(&m_time_unit); // Time stored in LSB (0) or ns (1)
       read_buff(&m_LSB_ns);    // Value of LSB in ns (useless if m_time_unit = 1)
+      m_inv_LSB_ns = 1.0 / m_LSB_ns;
     }
 
     read_buff(&m_start_run);
@@ -212,7 +199,7 @@ public:
     debug();
     debug("hit", m_hit_i, m_event_bin_size, "bits to read");
 
-    read_buff(&m_board          , read_size); // Read the board type
+    read_buff(&m_board          , read_size); // Read the board number
     read_buff(&m_hit.timestamp  , read_size); // Read the timestamp
 
     debug("m_acquisition_mode");
@@ -226,26 +213,18 @@ public:
 
     auto timingMode = (m_acquisition_mode & DTQ_TIMING);
 
-    // if (timingMode) read_buff(&m_hit.number_hits , read_size);
-    // if (!timingMode)
-    // {
-      read_buff(&m_hit.trig_id , read_size);
-      read_buff(&m_channel_mask, read_size);
-      // print_binary(m_hit.trig_id);
-      // print_binary(m_channel_mask);
-    // }
+    read_buff(&m_hit.trig_id , read_size);
+    read_buff(&m_channel_mask, read_size);
 
-    if (m_hit.id % int(1e4) == 0) std::cout << "\rProgress: " << std::fixed << std::setprecision(1) << getSizeReadRel() << "%   " << std::flush;
+    // if (m_hit.id % int(1e4) == 0) std::cout << "\rProgress: " << std::fixed << std::setprecision(1) << getSizeReadRel() << "%   " << std::flush;
 
-    int i = 0;
+    int ch_i = 0;
     while (read_size < m_event_bin_size)
     { // Looping through all the written channels :
-      debug("channel", i++, read_size, "bits read");
+      debug("channel", ch_i++, read_size, "bits read");
            if (m_acquisition_mode & DTQ_TSPECT) readTimeOrSpectroChannel(read_size); // Spect Or Time or Both
       else if (m_acquisition_mode & DTQ_COUNT ) readCountChannel        (read_size); // Count mode
       else Colib::throw_error("Don't know acquisition mode "+std::to_string(int(m_acquisition_mode)));
-      
-      // if (!timingMode) ++m_hit.number_hits; // TODO CHECK if this should be commented or not
     }
     debug(m_event_bin_size, "bits to read", read_size, "bits read");
     ++m_cursor;
@@ -254,47 +233,68 @@ public:
  
   void readTimeOrSpectroChannel(size_t & read_size)
   {
-    uint8_t channel_id;
-    uint8_t data_type ;
+    auto read_u8  = [&]() { uint8_t  v; read_buff(&v, read_size); return v; };
+    auto read_u16 = [&]() { uint16_t v; read_buff(&v, read_size); return v; };
+    auto read_u32 = [&]() { uint32_t v; read_buff(&v, read_size); return v; };
+    auto read_f   = [&]() { float    v; read_buff(&v, read_size); return v; };
 
-    read_buff(&channel_id, read_size);
-    read_buff(&data_type , read_size);
+    m_hit.countHit();
+    m_hit.setID(read_u8(), m_board);
 
-    debug("channel id", int(channel_id), "channel data type", std::bitset<8>(data_type), "=", dataTypeString(data_type));
+    auto data_type = read_u8();
 
-    if (m_hit.size() < size_cast(channel_id)) {error(int(channel_id), ">", m_hit.size()); Colib::pause();}
+    debug("channel id", int(m_hit.getID().back()), "channel data type", std::bitset<8>(data_type), "=", dataTypeString(data_type));
 
-    if (data_type & LG ) {             // Read Low Gain
-      read_buff(&tmp_u16, read_size);
-      m_hit.LGs[channel_id] = tmp_u16;
+    auto process_field = [&](uint8_t mask, auto& vec, auto read_fn) {
+        if (data_type & mask) {
+            vec.push_back(read_fn());
+        } else {
+            vec.push_back(0); 
+        }
+    };
+
+    process_field(LG, m_hit.getLG(), read_u16);
+    process_field(HG, m_hit.getHG(), read_u16);
+
+    if (m_time_unit) { // Time directly in ns (float)
+        process_field(TOA, m_hit.getToA(), [&] { return static_cast<double>(read_f()); });
+        process_field(TOT, m_hit.getToT(), [&] { return static_cast<double>(read_f()); });
+    } else { // Time in LSB ticks (converted via multiplication)
+        process_field(TOA, m_hit.getToA(), [&] { return static_cast<double>(read_u32()) * m_inv_LSB_ns; });
+        process_field(TOT, m_hit.getToT(), [&] { return static_cast<double>(read_u16()) * m_inv_LSB_ns; });
     }
-    if (data_type & HG ) {             // Read High Gain
-      read_buff(&tmp_u16, read_size);
-      m_hit.HGs[channel_id] = tmp_u16;
-    }
-    if (data_type & TOA) {             // Read Time Of Arrival
-      if (m_time_unit) { // Default is 0. If ver > 3.1 it can be 1, that means time is given as float
-        read_buff(&tmp_f  , read_size);
-        m_hit.ToAs[channel_id] = double_cast(tmp_f  );
-      } else {
-        read_buff(&tmp_u32, read_size);
-        m_hit.ToAs[channel_id] = double_cast(tmp_u32)/m_LSB_ns;
-      }
-    }
-    if (data_type & TOT) {             // Read Time Over Threshold
-      if (m_time_unit) { // Default is 0. If ver > 3.1 it can be 1, that means time is given as float in ns directly
-        read_buff(&tmp_f  , read_size);
-        m_hit.ToTs[channel_id] = double_cast(tmp_f  );
-      } else {
-        read_buff(&tmp_u16, read_size);
-        m_hit.ToTs[channel_id] = double_cast(tmp_u16)/m_LSB_ns;
-      }
-    }
+
+    // if (data_type & LG ) {             // Read Low Gain
+    //   read_buff(&tmp_u16, read_size);
+    //   m_hit.LGs.push_back(tmp_u16);
+    // }
+    // if (data_type & HG ) {             // Read High Gain
+    //   read_buff(&tmp_u16, read_size);
+    //   m_hit.HGs.push_back(tmp_u16);
+    // }
+    // if (data_type & TOA) {             // Read Time Of Arrival
+    //   if (m_time_unit) { // Default is 0. If ver > 3.1 it can be 1, that means time is given as float
+    //     read_buff(&tmp_f  , read_size);
+    //     m_hit.ToAs.push_back(double_cast(tmp_f  ));
+    //   } else {
+    //     read_buff(&tmp_u32, read_size);
+    //     m_hit.ToAs.push_back(double_cast(tmp_u32)/m_LSB_ns);
+    //   }
+    // }
+    // if (data_type & TOT) {             // Read Time Over Threshold
+    //   if (m_time_unit) { // Default is 0. If ver > 3.1 it can be 1, that means time is given as float in ns directly
+    //     read_buff(&tmp_f  , read_size);
+    //     m_hit.ToTs.push_back(double_cast(tmp_f  ));
+    //   } else {
+    //     read_buff(&tmp_u16, read_size);
+    //     m_hit.ToTs.push_back(double_cast(tmp_u16)/m_LSB_ns);
+    //   }
+    // }
     if (data_type == 0) 
     {
       error("Can't read data type 0");
       error(
-        "channel_id "      , int(channel_id) ,
+        "channel_id "      , int(m_hit.getID().back()) ,
         "data_type 0x"     , std::hex        , int(data_type), std::dec, 
         "m_event_bin_size ", m_event_bin_size,
         "m_board "         , int(m_board)    ,         
@@ -302,41 +302,27 @@ public:
       );
     }
     else debug(      
-        "channel_id "      , int(channel_id) ,
+        "channel_id "      , int(m_hit.getID().back()) ,
         "data_type 0x"     , std::hex        , int(data_type), std::dec, 
         "m_event_bin_size ", m_event_bin_size,
         "m_board "         , int(m_board)    ,         
         "timestamp "       , m_hit.timestamp
       );
-  }
 
-  /// @brief Get the amount of data already read
-  auto getSizeRead(std::string unit = "o")
-  {
-    return Colib::sizeFileConversion(m_datafile.tellg(), "o", unit);
-  }
-
-  auto const & getCursor() const {return m_cursor;}
-
-  // /// @brief Get the amount of data already read
-  // auto getSizeRead()
-  // {
-  //   return Colib::sizeFileBestUnit(m_datafile.tellg());
-  // }
-  
-  /// @brief Get the total size of the file
-  auto getSizeFile()
-  {
-    return Colib::sizeFileBestUnitString(m_datafile);
-  }
-
-  /// @brief Get the amount of data already read divided by the size of the file
-  auto getSizeReadRel()
-  {
-    return 100.*m_datafile.tellg() / m_data_end_pos;
+    // Fill vectors that might not have been filled because they don't have either Time or Spectro information
+    auto align_vectors = [](std::size_t target_size, auto&... vecs) {(vecs.resize(target_size, 0), ...);};
+    align_vectors(m_hit.size(), m_hit.getLG(), m_hit.getHG(), m_hit.getToA(), m_hit.getToT());
   }
 
   void fillTree() {m_tree -> Fill();}
+
+  void convert()
+  {
+    if (!m_datafile.is_open()) Colib::throw_error("Open the datafile before calling convert() !!");
+    if (!m_tree) Colib::throw_error("Reader5052::convert(): no tree !! Initialize the output before calling convert().");
+    while(readEvent()) fillTree();
+    write();
+  }
 
   void write(std::string const & filename, std::string const & mode)
   {
@@ -347,7 +333,7 @@ public:
     print(filename, "written");
   }
 
-  /// @brief Recommended writting method (you won't have to worry about ROOT memory management)
+  /// @brief Recommended writting method, requires Reader5052::setRootOutput to be set first
   void write()
   {
     print("writting", m_rootFilename);
@@ -359,11 +345,29 @@ public:
     m_file -> Close();
   }
   
+  // Checkers:
   bool const end() {return m_datafile.eof();}
 
+  // Getters: 
   auto & getTree() {return m_tree;}
-
   auto const & getHit() const{return m_hit;}
+  /// @brief Get the cursor
+  auto const & getCursor() const {return m_cursor;}
+  /// @brief Get the total size of the file
+  auto getSizeFile() {return Colib::sizeFileBestUnitString(m_datafile);}
+  /// @brief Get the amount of data already read divided by the total size of the file
+  auto getSizeReadRel() {return 100.*m_datafile.tellg() / m_data_end_pos;}
+  /// @brief Get the amount of data already read
+  auto getSizeRead(std::string unit = "o") {return Colib::sizeFileConversion(m_datafile.tellg(), "o", unit);}
+
+  // Setters:
+
+  void setMaxHits(int nb)
+  {
+    m_maxHits = nb;
+    m_maxHitsSet = true;
+  }
+
 
   void printHeader()
   {
@@ -395,39 +399,39 @@ private:
 
   // Attributes :
 
-  uint8_t  m_data_format      = 0 ;
-  uint8_t  m_acquisition_mode = 0 ;
-  uint8_t  m_time_unit        = 0 ; // ToA or ToT written as int (LSB) or float (ns)
-  uint16_t m_board_version    = 0 ;
-  uint16_t m_run_number       = 0 ;
-  uint16_t n_spectro_bin      = 0 ; // Number of spectroscopy channels (typically 4096)
-  uint64_t m_start_run        = 0 ; // Timestamp of the start of the run (relative to 01/01/1970)
-  float    m_LSB_ns           = 0.; // In the case of LSB, conversion factor
+  uint8_t  m_data_format     {};
+  uint8_t  m_acquisition_mode{};
+  uint8_t  m_time_unit       {}; // ToA or ToT written as int (LSB) or float (ns)
+  uint16_t m_board_version   {};
+  uint16_t m_run_number      {};
+  uint16_t n_spectro_bin     {}; // Number of spectroscopy channels (typically 4096)
+  uint64_t m_start_run       {}; // Timestamp of the start of the run (relative to 01/01/1970)
+  float    m_LSB_ns          {}; // In the case of timestamp written in LSB, conversion factor to ns (usually 0.5 ns)
+  
+  float m_inv_LSB_ns{}; // Allows precomputation for better efficiency
 
   // Event informations :
 
-  uint8_t  m_board          = 0 ;
-  uint16_t m_event_bin_size = 0 ;
-  uint64_t m_channel_mask   = 0 ;
+  uint8_t  m_board         {};
+  uint16_t m_event_bin_size{};
+  uint64_t m_channel_mask  {};
 
   std::string m_rootFilename;
-  TFile * m_file = nullptr;
-  TTree * m_tree = nullptr;
+  TFile * m_file{};
+  TTree * m_tree{};
 
   bool m_autoSave{}, m_maxHitsSet{};
-  int m_maxHits = 0;
+  int m_maxHits{};
 
   std::ifstream m_datafile;
   std::string m_filename;
 
-  HitSiPM<_size> m_hit;
+  RootHitSiPM m_hit;
   size_t m_size = _size;
   size_t m_cursor{};
   
-  // std::string event_str; UNUSED
-
-  bool m_header_read = false;
-  bool m_output_init = false;
+  bool m_header_read{};
+  bool m_output_init{};
 
   // File informations :
 
@@ -447,6 +451,7 @@ private:
     n_spectro_bin      = 0 ;
     m_start_run        = 0 ;
     m_LSB_ns           = 0.;
+    m_inv_LSB_ns       = 0.;
   }
   
   void resetEventInformations()
@@ -458,12 +463,8 @@ private:
 
   // Helper members :
 
-  uint8_t  tmp_8   = 0 ;
-  uint16_t tmp_u16 = 0 ;
-  uint32_t tmp_u32 = 0 ;
-  uint64_t tmp_u64 = 0 ;
-  float    tmp_f   = 0.;
-  size_t   m_hit_i = 0 ;
+  uint8_t  tmp_8   {};
+  size_t   m_hit_i {};
 
   template<class T>
   auto & read_buff(T * buff) {return m_datafile.read(reinterpret_cast<char*>(buff), sizeof(T));}
